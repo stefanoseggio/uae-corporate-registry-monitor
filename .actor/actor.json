@@ -1,0 +1,18 @@
+{
+    "$schema": "https://apify.com/schemas/v1/actor.ide.json",
+    "actorSpecification": 1,
+    "name": "uae-corporate-registry-monitor",
+    "title": "UAE Corporate Registry Monitor - Dubai Mainland, ADGM & DIFC",
+    "description": "Delta-tracks UAE corporate registrations and license-status changes across Dubai's DED mainland trade-license register (Dubai Pulse), ADGM (Abu Dhabi Global Market), and DIFC public registers. Bilingual Arabic/English entity-name normalization. Multi-channel status-change alerting. Pay-per-event.",
+    "version": "1.0",
+    "buildTag": "latest",
+    "minMemoryMbytes": 512,
+    "maxMemoryMbytes": 2048,
+    "meta": { "templateId": "ts-apify-only", "generatedBy": "Claude Code with Claude Sonnet 5" },
+    "inputSchema": "./input_schema.json",
+    "storages": { "dataset": "./dataset_schema.json" },
+    "output": "./output_schema.json",
+    "changelog": "../CHANGELOG.md",
+    "dockerfile": "../Dockerfile",
+    "categories": ["BUSINESS"]
+}

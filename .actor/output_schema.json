@@ -1,0 +1,11 @@
+{
+    "actorOutputSchemaVersion": 1,
+    "title": "Output schema of the Actor",
+    "properties": {
+        "entities": {
+            "type": "string",
+            "title": "Delta events (new/status-changed corporate entities)",
+            "template": "{{links.apiDefaultDatasetUrl}}/items"
+        }
+    }
+}

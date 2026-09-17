@@ -1,0 +1,43 @@
+{
+    "actorSpecification": 1,
+    "fields": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": ["event_type", "record_id", "data_source", "commercial_name_en", "scraped_at"],
+        "properties": {
+            "@type": { "type": "string", "enum": ["schema:Corporation"] },
+            "event_id": { "type": "string" },
+            "event_type": { "type": "string", "enum": ["NEW_ENTITY", "STATUS_CHANGED", "ENTITY_UPDATED", "ENTITY_UNCHANGED", "BASELINE_SNAPSHOT"] },
+            "record_id": { "type": "string" },
+            "data_source": { "type": "string", "enum": ["DUBAI_MAINLAND", "ADGM_FREEZONE", "DIFC_FREEZONE"] },
+            "free_zone": { "type": "boolean" },
+            "commercial_name_en": { "type": "string" },
+            "commercial_name_ar": { "type": ["string", "null"] },
+            "legal_form": { "type": ["string", "null"] },
+            "registration_status": { "type": ["string", "null"] },
+            "license_status": { "type": ["string", "null"] },
+            "trade_name_status": { "type": ["string", "null"] },
+            "previous_registration_status": { "type": ["string", "null"] },
+            "previous_license_status": { "type": ["string", "null"] },
+            "previous_trade_name_status": { "type": ["string", "null"] },
+            "activities": { "type": "array", "items": { "type": "string" } },
+            "issue_date": { "type": ["string", "null"] },
+            "expiry_date": { "type": ["string", "null"] },
+            "cancel_date": { "type": ["string", "null"] },
+            "registered_address": { "type": ["string", "null"] },
+            "status_fingerprint": { "type": "string" },
+            "content_fingerprint": { "type": "string" },
+            "is_new": { "type": "boolean" },
+            "scraped_at": { "type": "string" }
+        }
+    },
+    "views": {
+        "overview": {
+            "title": "Overview",
+            "transformation": {
+                "fields": ["event_type", "data_source", "commercial_name_en", "commercial_name_ar", "registration_status", "previous_registration_status", "legal_form", "scraped_at"]
+            },
+            "display": { "component": "table" }
+        }
+    }
+}

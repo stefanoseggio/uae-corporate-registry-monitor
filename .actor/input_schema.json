@@ -1,0 +1,70 @@
+{
+    "title": "UAE Corporate Registry Monitor - Dubai Mainland + ADGM + DIFC",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "dataSources": {
+            "title": "Data sources to check",
+            "type": "array",
+            "description": "Which live, independently-verified UAE corporate registries to check this run. ADGM_FREEZONE (Abu Dhabi Global Market) and DIFC_FREEZONE (Dubai International Financial Centre) are both real, live, anonymous, bulk-queryable public registers - no setup required. DUBAI_MAINLAND (Dubai's DED trade-license register via the Dubai Pulse open-data portal) additionally requires your own approved dubaiPulseApiKey below (see README 'Dubai mainland setup') - no bulk, anonymous, general-commerce mainland registry exists for Abu Dhabi, Sharjah, or the other emirates (confirmed by live investigation; see ARCHITECTURE.md section 0), so they are not offered here.",
+            "editor": "select",
+            "items": {
+                "type": "string",
+                "enum": ["DUBAI_MAINLAND", "ADGM_FREEZONE", "DIFC_FREEZONE"]
+            },
+            "default": ["ADGM_FREEZONE", "DIFC_FREEZONE"]
+        },
+        "dubaiPulseApiKey": {
+            "title": "Dubai Pulse API key (required for DUBAI_MAINLAND)",
+            "type": "string",
+            "description": "Your own Dubai Pulse API key, obtained via Dubai Pulse's own 'Request Permission' approval flow (dubaipulse.gov.ae) - this can take up to 14 days and is not something this actor can provision on your behalf. Only needed if dataSources includes DUBAI_MAINLAND. Leave blank otherwise.",
+            "editor": "textfield",
+            "isSecret": true
+        },
+        "maxItems": {
+            "title": "Max records to push this run",
+            "type": "integer",
+            "description": "Stops the run once this many changed/new entity records have been pushed (and charged, where applicable) across all selected data sources - this actor's own safety valve. Records not yet reached when the limit is hit are simply re-evaluated fresh next run. Defaults to 50 so a default/test run completes in well under Apify's automated-test window.",
+            "minimum": 1,
+            "default": 50
+        },
+        "deltaStateName": {
+            "title": "Delta state name",
+            "type": "string",
+            "description": "Names the persistent Key-Value Store this run's delta memory (per-entity fingerprints and per-data-source baseline-completion flags) lives in. Use a distinct name per independent schedule/configuration. Leave as 'default' for a single schedule.",
+            "editor": "textfield",
+            "default": "default"
+        },
+        "resetState": {
+            "title": "Reset delta state",
+            "type": "boolean",
+            "description": "When true, ignores all previously-remembered entities and baseline-completion flags for this deltaStateName and re-baselines from scratch. Use only to deliberately restart monitoring.",
+            "default": false
+        },
+        "onlyNew": {
+            "title": "Deliver only new/changed entities",
+            "type": "boolean",
+            "description": "When true (recommended, and the only free-of-charge default), only NEW_ENTITY, STATUS_CHANGED, and ENTITY_UPDATED events are delivered - never a snapshot of an unchanged entity or a first-run baseline. When false, every matched entity is delivered every run its data source is processed, including BASELINE_SNAPSHOT (first run) and ENTITY_UNCHANGED rows.",
+            "default": true
+        },
+        "webhookUrl": {
+            "title": "Generic webhook URL (optional)",
+            "type": "string",
+            "description": "Any HTTPS endpoint that accepts a JSON POST - receives the full raw event payload with no channel-specific formatting. Independent of Apify's own platform-level webhook system.",
+            "editor": "textfield"
+        },
+        "slackWebhookUrl": {
+            "title": "Slack Incoming Webhook URL (optional)",
+            "type": "string",
+            "description": "A Slack Incoming Webhook URL created via a Slack App (Slack's current, supported method - not the older 'legacy custom integrations' path). Receives a formatted, bilingual Slack Block Kit message with a colored accent bar highlighting license status changes.",
+            "editor": "textfield"
+        },
+        "teamsWebhookUrl": {
+            "title": "Microsoft Teams webhook URL (optional)",
+            "type": "string",
+            "description": "A Microsoft Teams 'Workflows' webhook URL (the current mechanism as of 2026 - NOT the retired classic Incoming Webhook connector; see README). Receives a formatted, bilingual Adaptive Card with a status-change visual accent.",
+            "editor": "textfield"
+        }
+    },
+    "required": []
+}
