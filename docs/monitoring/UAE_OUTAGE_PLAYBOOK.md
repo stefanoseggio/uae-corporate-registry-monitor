@@ -8,10 +8,10 @@ polling once they recover. This is an operational document, not a design documen
 
 ## Current, confirmed status (as of 2026-09-17, 4 independent checks between 04:56 and 05:25 UTC)
 
-| Source | Status | Signature | Client-side fix possible? |
-|---|---|---|---|
-| ADGM_FREEZONE | 🔴 DOWN | `System.NullPointerException` ("null input to JSON parser") at `Class.RASearchUtil.getSearchResponseForPR: line 2889, column 1` — a live defect in ADGM's own Salesforce Apex controller | **No.** This is thrown by ADGM's own server-side code before it ever produces a response the actor's client-side retry logic could route around. |
-| DIFC_FREEZONE | 🔴 DOWN | Live HTTP 500 from DIFC's own `/api/handleRequest` Next.js route | **No.** The actor's existing 5-attempt retry loop already exhausts against this exact failure every time (confirmed both in production runs and in independent standalone tests) — more retries do not help a server that is genuinely erroring on every attempt. |
+| Source        | Status  | Signature                                                                                                                                                                                | Client-side fix possible?                                                                                                                                                                                                                                         |
+| ------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ADGM_FREEZONE | 🔴 DOWN | `System.NullPointerException` ("null input to JSON parser") at `Class.RASearchUtil.getSearchResponseForPR: line 2889, column 1` — a live defect in ADGM's own Salesforce Apex controller | **No.** This is thrown by ADGM's own server-side code before it ever produces a response the actor's client-side retry logic could route around.                                                                                                                  |
+| DIFC_FREEZONE | 🔴 DOWN | Live HTTP 500 from DIFC's own `/api/handleRequest` Next.js route                                                                                                                         | **No.** The actor's existing 5-attempt retry loop already exhausts against this exact failure every time (confirmed both in production runs and in independent standalone tests) — more retries do not help a server that is genuinely erroring on every attempt. |
 
 Both failures reproduce identically on fresh, independent requests (a fresh ADGM bootstrap token,
 a fresh DIFC connection) — this rules out a stale-token or connection-pooling explanation on this
@@ -83,15 +83,15 @@ hours apart, to rule out a flapping/intermittent recovery rather than a genuine 
 1. **Confirm with the real actor code, not just the probe.** The probe intentionally sends a
    minimal, single-page request; before trusting full production traffic to a newly-recovered
    source, run the actual actor with only that source selected:
-   ```bash
-   apify call BmhA43NYN15DxOLTD --timeout 300
-   ```
-   with input `{"dataSources": ["ADGM_FREEZONE"]}` (or `["DIFC_FREEZONE"]`) via the Apify Console's
-   "Save as a new task" / Input tab, or via `apify call <actorId> --input '{"dataSources":["ADGM_FREEZONE"]}'`.
-   Confirm it completes `SUCCEEDED` and pushes real, sane-looking records (correct field shapes,
-   no obviously-truncated or malformed entity data) — a source can return HTTP 200 while still
-   emitting corrupted data if it's mid-recovery, which the probe's shallow check (one page, does
-   the response parse and report success) would not catch on its own.
+    ```bash
+    apify call BmhA43NYN15DxOLTD --timeout 300
+    ```
+    with input `{"dataSources": ["ADGM_FREEZONE"]}` (or `["DIFC_FREEZONE"]`) via the Apify Console's
+    "Save as a new task" / Input tab, or via `apify call <actorId> --input '{"dataSources":["ADGM_FREEZONE"]}'`.
+    Confirm it completes `SUCCEEDED` and pushes real, sane-looking records (correct field shapes,
+    no obviously-truncated or malformed entity data) — a source can return HTTP 200 while still
+    emitting corrupted data if it's mid-recovery, which the probe's shallow check (one page, does
+    the response parse and report success) would not catch on its own.
 2. **No code change is needed to re-enable a source that's already in the default `dataSources`
    array** (`ADGM_FREEZONE` and `DIFC_FREEZONE` both already are — see
    `.actor/input_schema.json`). Recovery on the government's end is enough; this actor's own retry

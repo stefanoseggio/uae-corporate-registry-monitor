@@ -58,7 +58,8 @@ describe('isHighValueChange', () => {
             statusFingerprint: first.statusFingerprint,
             contentFingerprint: first.contentFingerprint,
             registrationStatus: 'Registered',
-            licenseStatus: 'Licensed', tradeNameStatus: null,
+            licenseStatus: 'Licensed',
+            tradeNameStatus: null,
             lastSeen: '2026-01-01T00:00:00.000Z',
         };
         const changed = classify(normalizeAdgmEntity(adgmRow({ Entity_Status__c: 'Deregistered' })), state, true);
@@ -73,7 +74,8 @@ describe('isHighValueChange', () => {
             statusFingerprint: first.statusFingerprint,
             contentFingerprint: first.contentFingerprint,
             registrationStatus: 'Registered',
-            licenseStatus: 'Licensed', tradeNameStatus: null,
+            licenseStatus: 'Licensed',
+            tradeNameStatus: null,
             lastSeen: '2026-01-01T00:00:00.000Z',
         };
         const updated = classify(normalizeAdgmEntity(adgmRow({ Addresses__r: [{ Full_Address__c: 'A different address' }] })), state, true);
@@ -90,7 +92,8 @@ describe('isHighValueChange', () => {
             statusFingerprint: baseline.statusFingerprint,
             contentFingerprint: baseline.contentFingerprint,
             registrationStatus: 'Registered',
-            licenseStatus: 'Licensed', tradeNameStatus: null,
+            licenseStatus: 'Licensed',
+            tradeNameStatus: null,
             lastSeen: '2026-01-01T00:00:00.000Z',
         };
         const unchanged = classify(normalizeAdgmEntity(adgmRow()), state, true);
@@ -119,7 +122,8 @@ describe('toOutputRecord / computeEventId', () => {
             statusFingerprint: first.statusFingerprint,
             contentFingerprint: first.contentFingerprint,
             registrationStatus: 'Registered',
-            licenseStatus: 'Licensed', tradeNameStatus: null,
+            licenseStatus: 'Licensed',
+            tradeNameStatus: null,
             lastSeen: '2026-01-01T00:00:00.000Z',
         };
         const changed = classify(normalizeAdgmEntity(adgmRow({ Entity_Status__c: 'Deregistered' })), state, true);

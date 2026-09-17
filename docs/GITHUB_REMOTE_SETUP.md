@@ -66,7 +66,7 @@ gh secret list --repo <your-username>/<repo-name>
 ```
 
 This confirms `APIFY_TOKEN` exists as a secret name; GitHub never displays a secret's value again
-after it's set, by design — if you need to confirm it's the *correct* token, the only way is to
+after it's set, by design — if you need to confirm it's the _correct_ token, the only way is to
 rotate it (generate a new one in the Apify Console and re-run `gh secret set`) rather than try to
 read the old one back.
 

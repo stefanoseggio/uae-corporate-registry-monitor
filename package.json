@@ -3,7 +3,9 @@
     "version": "1.0.0",
     "type": "module",
     "description": "UAE Corporate Registry Delta Monitor: tracks Dubai mainland trade-license status changes (via Dubai Pulse open data) plus ADGM and DIFC free-zone company register changes, with bilingual Arabic/English entity normalization, pay-per-event.",
-    "engines": { "node": ">=20.0.0" },
+    "engines": {
+        "node": ">=20.0.0"
+    },
     "dependencies": {
         "apify": "^3.7.0"
     },

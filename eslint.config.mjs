@@ -30,4 +30,15 @@ export default [
             'import-x/no-default-export': 'off',
         },
     },
+    {
+        // docs/monitoring/*.js scripts are standalone operational CLI tooling, not part of the
+        // actor's own runtime (they never run inside an Apify Actor process and have no access to
+        // Apify's structured `log` object) - their entire purpose is human-readable console
+        // output, so the no-console rule (correct for src/, which must use Apify's logger) does
+        // not apply here.
+        files: ['docs/**/*.js'],
+        rules: {
+            'no-console': 'off',
+        },
+    },
 ];

@@ -10,9 +10,11 @@ actor on day one.
 ## Real Store metadata
 
 **Title** (set in [`.actor/actor.json`](.actor/actor.json)):
+
 > UAE Corporate Registry Monitor - Dubai Mainland, ADGM & DIFC
 
 **Description** (also set in `.actor/actor.json`):
+
 > Delta-tracks UAE corporate registrations and license-status changes across Dubai's DED mainland
 > trade-license register (via Dubai Pulse open data), ADGM (Abu Dhabi Global Market), and DIFC
 > (Dubai International Financial Centre) public registers. Bilingual Arabic/English entity-name
@@ -29,7 +31,7 @@ registry"` returned two genuinely relevant existing actors:
 1. **"UAE ADGM Public Register Scraper"** (`regdata`) — a direct, real competitor scraping the
    exact same ADGM register this actor covers (company name, registration number, status, type,
    classification, incorporation date, address, trade names).
-2. **"UAE Industrial Licence Monitor"** (`getascraper`) — monitors a *different* UAE registry
+2. **"UAE Industrial Licence Monitor"** (`getascraper`) — monitors a _different_ UAE registry
    entirely (Ministry of Industry and Advanced Technology industrial licenses), not a direct
    competitor, but confirms buyer demand for UAE regulatory-change monitoring exists on the Store.
 
@@ -54,12 +56,12 @@ did. Its real differentiation against the one direct ADGM competitor is genuine,
 
 ## Real target-term mapping
 
-| Target term / intent | How this listing addresses it |
-|---|---|
-| "ADGM register" / "ADGM company search" | Verbatim in description — the exact free-zone name a compliance buyer searches, alongside the direct competitor's own listing |
-| "DIFC company register" | Verbatim — the one segment with zero existing Store competition found |
-| "Dubai trade license" / "DED license status" | Verbatim — matches the real Dubai Pulse dataset name and DED's own terminology |
-| "UAE company monitoring" / "license status change" | "status-change alerting" — the real mechanism (STATUS_CHANGED events), not a vague "monitoring" claim |
+| Target term / intent                                  | How this listing addresses it                                                                                                    |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| "ADGM register" / "ADGM company search"               | Verbatim in description — the exact free-zone name a compliance buyer searches, alongside the direct competitor's own listing    |
+| "DIFC company register"                               | Verbatim — the one segment with zero existing Store competition found                                                            |
+| "Dubai trade license" / "DED license status"          | Verbatim — matches the real Dubai Pulse dataset name and DED's own terminology                                                   |
+| "UAE company monitoring" / "license status change"    | "status-change alerting" — the real mechanism (STATUS_CHANGED events), not a vague "monitoring" claim                            |
 | "Arabic company name" / "bilingual UAE business data" | "Bilingual Arabic/English entity-name normalization" — verbatim, tied to the one tier (Dubai mainland) where it actually applies |
 
 ## What actually moves ranking over time

@@ -56,7 +56,7 @@
  * "the sources are down" apart from "the monitor itself is broken."
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 const USER_AGENT = 'Mozilla/5.0 (compatible; DeltaRegistryComplianceMonitor/1.0; +https://apify.com)';
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -77,22 +77,36 @@ const KNOWN_DIFC_FAILURE_STATUS = 500;
  * actor's own module internals. See the file-level JSDoc above for why. */
 function buildAdgmJsonSearchString(nameFilter, pageNumber, pageSize) {
     return JSON.stringify({
-        advancedSearch: [{ fieldSetName: 'SearchFieldsAdvGen', headers: [
-            { dataType: 'BOOLEAN', fieldAPIName: 'Is_continued__c', isRequired: false, label: 'Is continued?', options: [], value: '' },
-            { dataType: 'PICKLIST', fieldAPIName: 'Entity_Status__c', isRequired: false, label: 'Entity Status', options: [], value: '' },
-            { dataType: 'DATE', fieldAPIName: 'Incorporation_Date__c', isRequired: false, label: 'Incorporation Date', options: [], value: '' },
-            { dataType: 'PICKLIST', fieldAPIName: 'Category__c', isRequired: false, label: 'Category', options: [], value: '' },
-        ], isParent: true, objectName: 'Account' }],
+        advancedSearch: [
+            {
+                fieldSetName: 'SearchFieldsAdvGen',
+                headers: [
+                    { dataType: 'BOOLEAN', fieldAPIName: 'Is_continued__c', isRequired: false, label: 'Is continued?', options: [], value: '' },
+                    { dataType: 'PICKLIST', fieldAPIName: 'Entity_Status__c', isRequired: false, label: 'Entity Status', options: [], value: '' },
+                    { dataType: 'DATE', fieldAPIName: 'Incorporation_Date__c', isRequired: false, label: 'Incorporation Date', options: [], value: '' },
+                    { dataType: 'PICKLIST', fieldAPIName: 'Category__c', isRequired: false, label: 'Category', options: [], value: '' },
+                ],
+                isParent: true,
+                objectName: 'Account',
+            },
+        ],
         advancedSearch_auditors: [{ fieldSetName: 'SearchFieldsAuditor', headers: [], isParent: false, objectName: 'Account', relationshipName: 'Subject_Account__r' }],
         advancedSearch_companies: [{ fieldSetName: 'SearchFieldsAdvComp', headers: [], isParent: true, objectName: 'Account' }],
         advancedSearch_foliostrataplanstratalot: [{ fieldSetName: 'SearchFieldsFolioStrataPlanLotAdvanced', headers: [], isParent: false, objectName: 'Property__c' }],
         advancedSearch_foundation: [{ fieldSetName: 'SearchFieldsAdvFoun', headers: [], isParent: true, objectName: 'Account' }],
-        advancedSearch_general: [{ fieldSetName: 'SearchFieldsAdvGen', headers: [
-            { dataType: 'BOOLEAN', fieldAPIName: 'Is_continued__c', isRequired: false, label: 'Is continued?', options: [], value: '' },
-            { dataType: 'PICKLIST', fieldAPIName: 'Entity_Status__c', isRequired: false, label: 'Entity Status', options: [], value: '' },
-            { dataType: 'DATE', fieldAPIName: 'Incorporation_Date__c', isRequired: false, label: 'Incorporation Date', options: [], value: '' },
-            { dataType: 'PICKLIST', fieldAPIName: 'Category__c', isRequired: false, label: 'Category', options: [], value: '' },
-        ], isParent: true, objectName: 'Account' }],
+        advancedSearch_general: [
+            {
+                fieldSetName: 'SearchFieldsAdvGen',
+                headers: [
+                    { dataType: 'BOOLEAN', fieldAPIName: 'Is_continued__c', isRequired: false, label: 'Is continued?', options: [], value: '' },
+                    { dataType: 'PICKLIST', fieldAPIName: 'Entity_Status__c', isRequired: false, label: 'Entity Status', options: [], value: '' },
+                    { dataType: 'DATE', fieldAPIName: 'Incorporation_Date__c', isRequired: false, label: 'Incorporation Date', options: [], value: '' },
+                    { dataType: 'PICKLIST', fieldAPIName: 'Category__c', isRequired: false, label: 'Category', options: [], value: '' },
+                ],
+                isParent: true,
+                objectName: 'Account',
+            },
+        ],
         advancedSearch_InsolvencyPractitioner: [{ fieldSetName: 'SearchFieldsInsolvencyPractitioner', headers: [], isParent: false, objectName: 'Account', relationshipName: 'Subject_Account__r' }],
         advancedSearch_partnership: [{ fieldSetName: 'SearchFieldsAdvPart', headers: [], isParent: true, objectName: 'Account' }],
         advancedsearch_RegisteredBuilding: [{ fieldSetName: 'SearchFieldsLeaseAdvancedBuilding', headers: [], isParent: false, objectName: 'Linked_Unit__c' }],
@@ -115,9 +129,14 @@ function buildAdgmJsonSearchString(nameFilter, pageNumber, pageSize) {
             rowLevel: true,
         },
         defaultOrderBy: 'ASC',
-        generalSearch: [{ fieldSetName: 'SearchFields', headers: [
-            { dataType: 'STRING', fieldAPIName: 'Name', isRequired: false, label: 'Account Name', options: [], value: nameFilter },
-        ], isParent: true, objectName: 'Account' }],
+        generalSearch: [
+            {
+                fieldSetName: 'SearchFields',
+                headers: [{ dataType: 'STRING', fieldAPIName: 'Name', isRequired: false, label: 'Account Name', options: [], value: nameFilter }],
+                isParent: true,
+                objectName: 'Account',
+            },
+        ],
         generalSearch_Folio: [{ fieldSetName: 'SearchFieldsFolioGeneral', headers: [], isParent: true, objectName: 'Property__c' }],
         generalsearch_RegisteredLease: [{ fieldSetName: 'SearchFieldsLeaseGeneral', headers: [], isParent: true, objectName: 'Linked_Unit__c' }],
         generalSearch_StrataLot: [{ fieldSetName: 'SearchFieldsStrataLotGeneral', headers: [], isParent: true, objectName: 'Property__c' }],
@@ -148,18 +167,33 @@ async function probeAdgm() {
             headers: { 'User-Agent': USER_AGENT },
         });
         if (!bootstrapResponse.ok) {
-            return { source: 'ADGM_FREEZONE', status: 'DOWN_UNKNOWN', startedAt, detail: `Bootstrap page returned HTTP ${bootstrapResponse.status} (expected 200) - ADGM's site structure or availability may have changed beyond the known Aura NullPointerException.` };
+            return {
+                source: 'ADGM_FREEZONE',
+                status: 'DOWN_UNKNOWN',
+                startedAt,
+                detail: `Bootstrap page returned HTTP ${bootstrapResponse.status} (expected 200) - ADGM's site structure or availability may have changed beyond the known Aura NullPointerException.`,
+            };
         }
         const html = await bootstrapResponse.text();
         const bootstrapMatch = /\/s\/sfsites\/l\/(%7B[^"'\s]+?%7D)\/bootstrap\.js/.exec(html);
         if (!bootstrapMatch) {
-            return { source: 'ADGM_FREEZONE', status: 'DOWN_UNKNOWN', startedAt, detail: "Could not locate the Aura bootstrap config in ADGM's search-results page HTML - the site structure has likely changed (this is a DIFFERENT failure mode than the known NullPointerException, and needs investigation, not just waiting)." };
+            return {
+                source: 'ADGM_FREEZONE',
+                status: 'DOWN_UNKNOWN',
+                startedAt,
+                detail: "Could not locate the Aura bootstrap config in ADGM's search-results page HTML - the site structure has likely changed (this is a DIFFERENT failure mode than the known NullPointerException, and needs investigation, not just waiting).",
+            };
         }
         const decoded = JSON.parse(decodeURIComponent(bootstrapMatch[1]));
-        const fwuid = decoded.fwuid;
+        const { fwuid } = decoded;
         const appLoadedMarker = decoded.loaded?.['APPLICATION@markup://siteforce:communityApp'];
         if (!fwuid || !appLoadedMarker) {
-            return { source: 'ADGM_FREEZONE', status: 'DOWN_UNKNOWN', startedAt, detail: 'Aura bootstrap config found but missing fwuid/app-loaded fields - site structure change, not the known NullPointerException.' };
+            return {
+                source: 'ADGM_FREEZONE',
+                status: 'DOWN_UNKNOWN',
+                startedAt,
+                detail: 'Aura bootstrap config found but missing fwuid/app-loaded fields - site structure change, not the known NullPointerException.',
+            };
         }
 
         const auraContext = JSON.stringify({
@@ -172,19 +206,21 @@ async function probeAdgm() {
             uad: true,
         });
         const message = {
-            actions: [{
-                id: '0;a',
-                descriptor: 'aura://ApexActionController/ACTION$execute',
-                callingDescriptor: 'UNKNOWN',
-                params: {
-                    namespace: '',
-                    classname: 'RASearchUtil',
-                    method: 'getSearchResponseForPR',
-                    params: { jsonSearchString: buildAdgmJsonSearchString('', 0, 1) },
-                    cacheable: false,
-                    isContinuation: false,
+            actions: [
+                {
+                    id: '0;a',
+                    descriptor: 'aura://ApexActionController/ACTION$execute',
+                    callingDescriptor: 'UNKNOWN',
+                    params: {
+                        namespace: '',
+                        classname: 'RASearchUtil',
+                        method: 'getSearchResponseForPR',
+                        params: { jsonSearchString: buildAdgmJsonSearchString('', 0, 1) },
+                        cacheable: false,
+                        isContinuation: false,
+                    },
                 },
-            }],
+            ],
         };
         const body = new URLSearchParams({
             message: JSON.stringify(message),
@@ -198,7 +234,12 @@ async function probeAdgm() {
             body: body.toString(),
         });
         if (!searchResponse.ok) {
-            return { source: 'ADGM_FREEZONE', status: 'DOWN_UNKNOWN', startedAt, detail: `Aura endpoint returned non-retryable-shape HTTP ${searchResponse.status} (the known failure is a 200-with-ERROR-state response, not an HTTP-level error).` };
+            return {
+                source: 'ADGM_FREEZONE',
+                status: 'DOWN_UNKNOWN',
+                startedAt,
+                detail: `Aura endpoint returned non-retryable-shape HTTP ${searchResponse.status} (the known failure is a 200-with-ERROR-state response, not an HTTP-level error).`,
+            };
         }
         const json = await searchResponse.json();
         const action = json.actions?.[0];
@@ -219,7 +260,12 @@ async function probeAdgm() {
         };
     } catch (error) {
         const isTimeout = error?.name === 'AbortError';
-        return { source: 'ADGM_FREEZONE', status: 'DOWN_UNKNOWN', startedAt, detail: isTimeout ? `Request timed out after ${REQUEST_TIMEOUT_MS}ms.` : `Network-level error: ${error?.message ?? String(error)}` };
+        return {
+            source: 'ADGM_FREEZONE',
+            status: 'DOWN_UNKNOWN',
+            startedAt,
+            detail: isTimeout ? `Request timed out after ${REQUEST_TIMEOUT_MS}ms.` : `Network-level error: ${error?.message ?? String(error)}`,
+        };
     }
 }
 
@@ -248,10 +294,20 @@ async function probeDifc() {
             const rowCount = json.Data?.companyList?.length ?? 0;
             return { source: 'DIFC_FREEZONE', status: 'UP', startedAt, detail: `handleRequest succeeded, returned ${rowCount} row(s) on the probe page.` };
         }
-        return { source: 'DIFC_FREEZONE', status: 'DOWN_UNKNOWN', startedAt, detail: `HTTP 200 but IsSuccess:false (${json.Message ?? 'no message'}) - this is a DIFFERENT failure mode than the known HTTP 500 and needs investigation.` };
+        return {
+            source: 'DIFC_FREEZONE',
+            status: 'DOWN_UNKNOWN',
+            startedAt,
+            detail: `HTTP 200 but IsSuccess:false (${json.Message ?? 'no message'}) - this is a DIFFERENT failure mode than the known HTTP 500 and needs investigation.`,
+        };
     } catch (error) {
         const isTimeout = error?.name === 'AbortError';
-        return { source: 'DIFC_FREEZONE', status: 'DOWN_UNKNOWN', startedAt, detail: isTimeout ? `Request timed out after ${REQUEST_TIMEOUT_MS}ms.` : `Network-level error: ${error?.message ?? String(error)}` };
+        return {
+            source: 'DIFC_FREEZONE',
+            status: 'DOWN_UNKNOWN',
+            startedAt,
+            detail: isTimeout ? `Request timed out after ${REQUEST_TIMEOUT_MS}ms.` : `Network-level error: ${error?.message ?? String(error)}`,
+        };
     }
 }
 
@@ -287,7 +343,11 @@ async function main() {
         }
     }
 
-    saveState(stateFilePath, { ADGM_FREEZONE: adgmResult.status === 'RESOLVED' ? 'UP' : adgmResult.status, DIFC_FREEZONE: difcResult.status === 'RESOLVED' ? 'UP' : difcResult.status, lastProbeAt: new Date().toISOString() });
+    saveState(stateFilePath, {
+        ADGM_FREEZONE: adgmResult.status === 'RESOLVED' ? 'UP' : adgmResult.status,
+        DIFC_FREEZONE: difcResult.status === 'RESOLVED' ? 'UP' : difcResult.status,
+        lastProbeAt: new Date().toISOString(),
+    });
 
     const results = [adgmResult, difcResult];
     if (jsonOutput) {

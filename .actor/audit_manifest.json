@@ -1,47 +1,47 @@
 {
-  "actorName": "UAE Corporate Registry Monitor — Dubai Mainland, ADGM & DIFC",
-  "actorId": "BmhA43NYN15DxOLTD",
-  "slug": "stefano_seggio/uae-corporate-registry-monitor",
-  "storeUrl": "https://apify.com/stefano_seggio/uae-corporate-registry-monitor",
-  "repoAssembledFrom": "infrastructure/flagship_uae_corporate_registry_actor",
-  "repoAssembledDate": "2026-09-17",
-  "published": true,
-  "buildNumberAtRepoAssembly": "1.0.4",
-  "ppeConfig": {
-    "apifyActorStartRetained": true,
-    "apifyDefaultDatasetItemRemoved": true,
-    "customEvents": [
-      { "name": "new-entity", "price": 0.02 },
-      { "name": "status-changed", "price": 0.02 },
-      { "name": "entity-updated", "price": 0.01 }
-    ],
-    "verifiedAgainstConsole": true,
-    "verifiedAgainstReadme": true
-  },
-  "testCoverage": {
-    "hasTests": true,
-    "testCount": 135,
-    "testFiles": 11
-  },
-  "resilienceAudit": {
-    "existingPatternBeforeAudit": "A bounded 5-attempt exponential-backoff retry loop, scoped strictly to the outbound fetch() call, already existed in both adgmSource.ts and difcSource.ts, with a 30s AbortController timeout and a NonRetryableFetchError class",
-    "changeApplied": "Added up to 30% random jitter to the backoff delay in adgmSource.ts and difcSource.ts (matching tedClient.ts's formula), and improved the final-exhaustion error message to report attempt count. dubaiPulseSource.ts deliberately left unchanged (out of scope; no default-input exposure).",
-    "liveUpstreamStatusAsOf": "2026-09-17T05:06Z (re-checked, third independent confirmation)",
-    "adgm": {
-      "status": "DOWN — live, ongoing, reproducible System.NullPointerException in ADGM's own Salesforce Apex controller (RASearchUtil.getSearchResponseForPR: line 2889)",
-      "clientSideFixPossible": false
+    "actorName": "UAE Corporate Registry Monitor — Dubai Mainland, ADGM & DIFC",
+    "actorId": "BmhA43NYN15DxOLTD",
+    "slug": "stefano_seggio/uae-corporate-registry-monitor",
+    "storeUrl": "https://apify.com/stefano_seggio/uae-corporate-registry-monitor",
+    "repoAssembledFrom": "infrastructure/flagship_uae_corporate_registry_actor",
+    "repoAssembledDate": "2026-09-17",
+    "published": true,
+    "buildNumberAtRepoAssembly": "1.0.4",
+    "ppeConfig": {
+        "apifyActorStartRetained": true,
+        "apifyDefaultDatasetItemRemoved": true,
+        "customEvents": [
+            { "name": "new-entity", "price": 0.02 },
+            { "name": "status-changed", "price": 0.02 },
+            { "name": "entity-updated", "price": 0.01 }
+        ],
+        "verifiedAgainstConsole": true,
+        "verifiedAgainstReadme": true
     },
-    "difc": {
-      "status": "DOWN — live, ongoing HTTP 500 on DIFC's own /api/handleRequest route",
-      "clientSideFixPossible": false
+    "testCoverage": {
+        "hasTests": true,
+        "testCount": 135,
+        "testFiles": 11
+    },
+    "resilienceAudit": {
+        "existingPatternBeforeAudit": "A bounded 5-attempt exponential-backoff retry loop, scoped strictly to the outbound fetch() call, already existed in both adgmSource.ts and difcSource.ts, with a 30s AbortController timeout and a NonRetryableFetchError class",
+        "changeApplied": "Added up to 30% random jitter to the backoff delay in adgmSource.ts and difcSource.ts (matching tedClient.ts's formula), and improved the final-exhaustion error message to report attempt count. dubaiPulseSource.ts deliberately left unchanged (out of scope; no default-input exposure).",
+        "liveUpstreamStatusAsOf": "2026-09-17T05:06Z (re-checked, third independent confirmation)",
+        "adgm": {
+            "status": "DOWN — live, ongoing, reproducible System.NullPointerException in ADGM's own Salesforce Apex controller (RASearchUtil.getSearchResponseForPR: line 2889)",
+            "clientSideFixPossible": false
+        },
+        "difc": {
+            "status": "DOWN — live, ongoing HTTP 500 on DIFC's own /api/handleRequest route",
+            "clientSideFixPossible": false
+        }
+    },
+    "knownRisks": [
+        "HIGH, UNRESOLVED, EXTERNAL: both of this actor's zero-setup default data sources (ADGM_FREEZONE, DIFC_FREEZONE) are currently down due to confirmed live government-side server defects. If both remain down across 3 consecutive daily automated health-check runs, Apify will flag this actor as under maintenance through no fault of its own code. No client-side remedy exists.",
+        "Test coverage gap: no automated test yet locks in the new 'failed after N attempts' exhaustion-message format as a regression guard"
+    ],
+    "constraintCompliance": {
+        "inviolableConstraint": "Core extraction/classification logic (src/deltaEngine.ts, src/routes.ts) and PPE pricing were not altered.",
+        "verificationMethod": "Independent adversarial re-read, grep sweep for PPE literals, file-mtime cross-check, and a fresh `npm run build` + `npx vitest run` (135/135 passed)"
     }
-  },
-  "knownRisks": [
-    "HIGH, UNRESOLVED, EXTERNAL: both of this actor's zero-setup default data sources (ADGM_FREEZONE, DIFC_FREEZONE) are currently down due to confirmed live government-side server defects. If both remain down across 3 consecutive daily automated health-check runs, Apify will flag this actor as under maintenance through no fault of its own code. No client-side remedy exists.",
-    "Test coverage gap: no automated test yet locks in the new 'failed after N attempts' exhaustion-message format as a regression guard"
-  ],
-  "constraintCompliance": {
-    "inviolableConstraint": "Core extraction/classification logic (src/deltaEngine.ts, src/routes.ts) and PPE pricing were not altered.",
-    "verificationMethod": "Independent adversarial re-read, grep sweep for PPE literals, file-mtime cross-check, and a fresh `npm run build` + `npx vitest run` (135/135 passed)"
-  }
 }

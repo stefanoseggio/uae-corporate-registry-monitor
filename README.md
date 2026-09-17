@@ -21,7 +21,7 @@ background knowledge) found that source does not exist. What's real:
   redirect to a login page reading "Login with Digital Identity." Not automatable by an unattended
   actor, at any price.
 - **Dubai mainland (DED) genuinely does publish exactly this data** through Dubai Pulse, a real
-  government open-data portal — but access requires the *actor's user* to complete Dubai Pulse's
+  government open-data portal — but access requires the _actor's user_ to complete Dubai Pulse's
   own "Request Permission" approval (up to 14 days) and supply their own API key. This actor
   cannot get you that key; see **Dubai mainland setup** below.
 - **ADGM and DIFC — genuinely free-zone, not "mainland," but real, live, anonymous, and
@@ -67,8 +67,8 @@ import { ApifyClient } from 'apify-client';
 const client = new ApifyClient({ token: process.env.APIFY_TOKEN });
 
 const run = await client.actor('stefano_seggio/uae-corporate-registry-monitor').call({
-  dataSources: ['ADGM_FREEZONE', 'DIFC_FREEZONE'],
-  maxItems: 100,
+    dataSources: ['ADGM_FREEZONE', 'DIFC_FREEZONE'],
+    maxItems: 100,
 });
 
 const { items } = await client.dataset(run.defaultDatasetId).listItems();
@@ -96,31 +96,31 @@ implemented — test it against your own approved credentials before relying on 
 
 ## Pricing (pay-per-event)
 
-| Event | Price | When it fires |
-|---|---|---|
-| `new-entity` | $0.02 | A registration never seen before appears, after that source's baseline is established. |
-| `status-changed` | $0.02 | An entity's registration or license status changed (e.g. `Registered` → `Deregistered`, `Active` → `Inactive - Struck Off`) — the flagship signal. |
-| `entity-updated` | $0.01 | Some other real content changed (address, activities, legal form) but status did not — delivered, but not pushed to real-time alert channels. |
-| `ENTITY_UNCHANGED` / `BASELINE_SNAPSHOT` | **Never billed** | First-run baseline observations and confirmed-unchanged entities are always free. |
+| Event                                    | Price            | When it fires                                                                                                                                      |
+| ---------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `new-entity`                             | $0.02            | A registration never seen before appears, after that source's baseline is established.                                                             |
+| `status-changed`                         | $0.02            | An entity's registration or license status changed (e.g. `Registered` → `Deregistered`, `Active` → `Inactive - Struck Off`) — the flagship signal. |
+| `entity-updated`                         | $0.01            | Some other real content changed (address, activities, legal form) but status did not — delivered, but not pushed to real-time alert channels.      |
+| `ENTITY_UNCHANGED` / `BASELINE_SNAPSHOT` | **Never billed** | First-run baseline observations and confirmed-unchanged entities are always free.                                                                  |
 
-*Pricing above is live — this actor is published on Apify Store, and these are the exact,
+_Pricing above is live — this actor is published on Apify Store, and these are the exact,
 currently-active Pay-Per-Event prices configured in the Apify Console's monetization settings, not
 a proposal. `apify-actor-start` is retained (the first 5 seconds of platform compute is waived on
 every run) and `apify-default-dataset-item` is removed (no automatic per-write dataset charge), so
 the "unchanged entities cost nothing" guarantee above is enforced at both the application layer
-and the Console billing layer.*
+and the Console billing layer._
 
 ## Input reference
 
 See [`.actor/input_schema.json`](.actor/input_schema.json) for the full, authoritative schema.
 
-| Field | Type | Default | Notes |
-|---|---|---|---|
-| `dataSources` | array | `["ADGM_FREEZONE", "DIFC_FREEZONE"]` | `DUBAI_MAINLAND`, `ADGM_FREEZONE`, `DIFC_FREEZONE`. Abu Dhabi mainland, Sharjah, and other emirates are not offered — no real bulk public data exists for them (see ARCHITECTURE.md §0.5). |
-| `dubaiPulseApiKey` | string | — | Required only if `dataSources` includes `DUBAI_MAINLAND`. See **Dubai mainland setup**. |
-| `maxItems` | integer | 50 | This actor's own per-run push cap, across all selected sources. |
-| `deltaStateName` / `resetState` / `onlyNew` | — | fleet defaults | Same convention as the rest of this fleet. |
-| `webhookUrl` / `slackWebhookUrl` / `teamsWebhookUrl` | string | — | See **Alerting** below. |
+| Field                                                | Type    | Default                              | Notes                                                                                                                                                                                      |
+| ---------------------------------------------------- | ------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `dataSources`                                        | array   | `["ADGM_FREEZONE", "DIFC_FREEZONE"]` | `DUBAI_MAINLAND`, `ADGM_FREEZONE`, `DIFC_FREEZONE`. Abu Dhabi mainland, Sharjah, and other emirates are not offered — no real bulk public data exists for them (see ARCHITECTURE.md §0.5). |
+| `dubaiPulseApiKey`                                   | string  | —                                    | Required only if `dataSources` includes `DUBAI_MAINLAND`. See **Dubai mainland setup**.                                                                                                    |
+| `maxItems`                                           | integer | 50                                   | This actor's own per-run push cap, across all selected sources.                                                                                                                            |
+| `deltaStateName` / `resetState` / `onlyNew`          | —       | fleet defaults                       | Same convention as the rest of this fleet.                                                                                                                                                 |
+| `webhookUrl` / `slackWebhookUrl` / `teamsWebhookUrl` | string  | —                                    | See **Alerting** below.                                                                                                                                                                    |
 
 ## What this actor deliberately does not do
 
@@ -140,30 +140,30 @@ See [`.actor/input_schema.json`](.actor/input_schema.json) for the full, authori
 
 ```json
 {
-  "@type": "schema:Corporation",
-  "event_id": "a3d619040582275b82a0b3fdbabe6ba1310e3535",
-  "event_type": "BASELINE_SNAPSHOT",
-  "record_id": "ADGM_FREEZONE::22086",
-  "data_source": "ADGM_FREEZONE",
-  "free_zone": true,
-  "commercial_name_en": "0727 HOLDING LIMITED",
-  "commercial_name_ar": null,
-  "legal_form": "Private Company Limited By Shares",
-  "registration_status": "Registered",
-  "license_status": "Licensed",
-  "trade_name_status": "Active",
-  "previous_registration_status": null,
-  "previous_license_status": null,
-  "previous_trade_name_status": null,
-  "activities": ["Non-Financial (Category B)", "Special Purpose Vehicle"],
-  "issue_date": "2024-11-07",
-  "expiry_date": null,
-  "cancel_date": null,
-  "registered_address": "Sub-Unit 1 of the Unit 4, Level 8, Al Sarab Tower, Adgm Square, Al Maryah Island, Abu Dhabi, United Arab Emirates",
-  "status_fingerprint": "1345e799976260d9385e820a0cb3a399782cf8865576b35661ade7386309b891",
-  "content_fingerprint": "29763666dd29ac3d096f7611a4068fc4102a4b6b75a160f64e552344dc07030b",
-  "is_new": true,
-  "scraped_at": "2026-09-17T02:22:55.844Z"
+    "@type": "schema:Corporation",
+    "event_id": "a3d619040582275b82a0b3fdbabe6ba1310e3535",
+    "event_type": "BASELINE_SNAPSHOT",
+    "record_id": "ADGM_FREEZONE::22086",
+    "data_source": "ADGM_FREEZONE",
+    "free_zone": true,
+    "commercial_name_en": "0727 HOLDING LIMITED",
+    "commercial_name_ar": null,
+    "legal_form": "Private Company Limited By Shares",
+    "registration_status": "Registered",
+    "license_status": "Licensed",
+    "trade_name_status": "Active",
+    "previous_registration_status": null,
+    "previous_license_status": null,
+    "previous_trade_name_status": null,
+    "activities": ["Non-Financial (Category B)", "Special Purpose Vehicle"],
+    "issue_date": "2024-11-07",
+    "expiry_date": null,
+    "cancel_date": null,
+    "registered_address": "Sub-Unit 1 of the Unit 4, Level 8, Al Sarab Tower, Adgm Square, Al Maryah Island, Abu Dhabi, United Arab Emirates",
+    "status_fingerprint": "1345e799976260d9385e820a0cb3a399782cf8865576b35661ade7386309b891",
+    "content_fingerprint": "29763666dd29ac3d096f7611a4068fc4102a4b6b75a160f64e552344dc07030b",
+    "is_new": true,
+    "scraped_at": "2026-09-17T02:22:55.844Z"
 }
 ```
 

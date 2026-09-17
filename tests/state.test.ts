@@ -46,7 +46,14 @@ describe('loadState / saveState', () => {
     it('round-trips a real state object through save and load', async () => {
         const original: DeltaState = {
             entities: {
-                'ADGM_FREEZONE::22086': { statusFingerprint: 'sf1', contentFingerprint: 'cf1', registrationStatus: 'Registered', licenseStatus: 'Licensed', tradeNameStatus: null, lastSeen: '2026-01-01T00:00:00.000Z' },
+                'ADGM_FREEZONE::22086': {
+                    statusFingerprint: 'sf1',
+                    contentFingerprint: 'cf1',
+                    registrationStatus: 'Registered',
+                    licenseStatus: 'Licensed',
+                    tradeNameStatus: null,
+                    lastSeen: '2026-01-01T00:00:00.000Z',
+                },
             },
             sourceCache: { ADGM_FREEZONE: { lastChecked: '2026-01-01T00:00:00.000Z', baselineComplete: true } },
         };
@@ -63,7 +70,8 @@ describe('recordSeen', () => {
             statusFingerprint: 'sf',
             contentFingerprint: 'cf',
             registrationStatus: 'Registered',
-            licenseStatus: 'Licensed', tradeNameStatus: null,
+            licenseStatus: 'Licensed',
+            tradeNameStatus: null,
             lastSeen: '2026-01-01T00:00:00.000Z',
         });
         expect(state.entities['ADGM_FREEZONE::22086'].statusFingerprint).toBe('sf');
