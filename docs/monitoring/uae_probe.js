@@ -5,7 +5,7 @@
  * (stefano_seggio/uae-corporate-registry-monitor, actor ID BmhA43NYN15DxOLTD).
  *
  * PURPOSE: check whether the two live, ongoing government-side outages documented in this
- * repository's .actor/audit_manifest.json and docs/ARCHITECTURE.md have resolved, WITHOUT
+ * repository's .actor/audit_manifest.json and AGENTS.md have resolved, WITHOUT
  * running the full Apify actor (no Actor.init(), no Key-Value Store, no dataset writes, no
  * Apify platform dependency at all — this runs as a plain Node.js script anywhere Node 20+ is
  * available: `node docs/monitoring/uae_probe.js`).

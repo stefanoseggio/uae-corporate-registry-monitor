@@ -156,7 +156,7 @@ describe('fetchAllDubaiLicenses - auth and retry behavior', () => {
  * constant is passed - found untested by adversarial review: every prior test in this file called
  * fetchAllDubaiLicenses exclusively, so a bug isolated to the trade-name endpoint specifically
  * (e.g. a typo in DED_TRADE_NAME_API_URL) would have gone undetected by this file, and
- * tests/integration.test.ts mocks fetchAllDubaiTradeNames out entirely rather than exercising the
+ * test/integration.test.ts mocks fetchAllDubaiTradeNames out entirely rather than exercising the
  * real implementation. This suite mirrors the fetchAllDubaiLicenses coverage above against the
  * real function.
  */

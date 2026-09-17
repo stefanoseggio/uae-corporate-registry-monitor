@@ -34,6 +34,31 @@
         "format:check": "prettier --check .",
         "test": "vitest run"
     },
+    "keywords": [
+        "apify",
+        "actor",
+        "uae",
+        "united arab emirates",
+        "corporate registry",
+        "company registry monitor",
+        "adgm",
+        "abu dhabi global market",
+        "difc",
+        "dubai international financial centre",
+        "dubai pulse",
+        "dubai trade license",
+        "kyb",
+        "aml compliance",
+        "bilingual arabic english",
+        "delta monitoring",
+        "b2b data",
+        "pay-per-event"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/stefanoseggio/uae-corporate-registry-monitor.git"
+    },
+    "homepage": "https://apify.com/stefano_seggio/uae-corporate-registry-monitor",
     "author": "Stefano",
     "license": "Apache-2.0"
 }

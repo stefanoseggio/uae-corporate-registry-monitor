@@ -1,13 +1,20 @@
 # UAE Corporate Registry Monitor — Dubai Mainland, ADGM & DIFC
 
-![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue) ![Tests](https://img.shields.io/badge/tests-135%20passing-brightgreen) ![Data sources](https://img.shields.io/badge/data%20sources-Dubai%20Pulse%20%7C%20ADGM%20%7C%20DIFC-003469) ![Pricing](https://img.shields.io/badge/pricing-pay--per--event-orange)
+[![Built for Apify](https://img.shields.io/badge/built%20for-Apify-3E7BFA)](https://apify.com/stefano_seggio/uae-corporate-registry-monitor) [![Pay-Per-Event](https://img.shields.io/badge/pricing-pay--per--event%20%E2%80%94%20%240.02-orange)](https://apify.com/stefano_seggio/uae-corporate-registry-monitor) ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white) [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue)](./LICENSE)
 
-Delta-tracks UAE corporate registrations and license-status changes across three real, live,
-independently-verified registers: Dubai's DED mainland trade-license register (via the Dubai
-Pulse open-data portal), ADGM (Abu Dhabi Global Market), and DIFC (Dubai International Financial
-Centre). Bilingual Arabic/English entity-name normalization. Part of
+[![Run on Apify Store](https://img.shields.io/badge/Run%20on-Apify%20Store-FF9012?style=for-the-badge&logo=apify&logoColor=white)](https://apify.com/stefano_seggio/uae-corporate-registry-monitor)
+
+Live and public at [apify.com/stefano_seggio/uae-corporate-registry-monitor](https://apify.com/stefano_seggio/uae-corporate-registry-monitor).
+
+**Delta-tracks UAE corporate registrations and license-status changes across three real, live, independently-verified registers: Dubai's DED mainland trade-license register (via the Dubai Pulse open-data portal), ADGM (Abu Dhabi Global Market), and DIFC (Dubai International Financial Centre).**
+
+Bilingual Arabic/English entity-name normalization. Part of
 [Delta Registry](https://github.com/stefanoseggio), a pay-per-event regulatory/compliance data
 fleet.
+
+No third-party API key is required for the two default, zero-setup sources (ADGM, DIFC). BYOK
+status: a key is needed only if you opt into the optional `DUBAI_MAINLAND` source — your own
+approved Dubai Pulse API key, see **Dubai mainland setup** below.
 
 ## No, there isn't a single "UAE Mainland Corporate Registry" open API — here's what's real instead
 
@@ -29,7 +36,7 @@ background knowledge) found that source does not exist. What's real:
   it return the entire register with pagination and export, not a single-record lookup.
 
 Full verification record, including the sources investigated and ruled out (Abu Dhabi, Sharjah,
-Ajman, and the UAE's federal CKAN portals), is in [ARCHITECTURE.md](ARCHITECTURE.md#0-live-data-source-verification-record).
+Ajman, and the UAE's federal CKAN portals), is in [AGENTS.md](AGENTS.md#0-live-data-source-verification-record).
 
 ## Quickstart
 
@@ -88,7 +95,7 @@ items.forEach((item) => console.log(`${item.event_type}: ${item.commercial_name_
 **Honest caveat, not a hidden footnote**: this is the one integration in this actor whose exact
 wire format could not be verified against live traffic during development — Dubai Pulse rejected
 every direct connection attempt made from every tool available in this build environment (see
-[ARCHITECTURE.md §0.2](ARCHITECTURE.md#02-dubai-mainland-dubai-pulse---the-closest-real-match-but-with-real-access-friction)).
+[AGENTS.md §0.2](AGENTS.md#02-dubai-mainland-dubai-pulse---the-closest-real-match-but-with-real-access-friction)).
 The field schema is verified from the dataset's own real documentation; the response envelope
 shape and status-code vocabulary are not. `src/dubaiPulseSource.ts` is built to fail with a
 specific, diagnostic error rather than silently misparse if the real API differs from what's
@@ -114,24 +121,24 @@ and the Console billing layer._
 
 See [`.actor/input_schema.json`](.actor/input_schema.json) for the full, authoritative schema.
 
-| Field                                                | Type    | Default                              | Notes                                                                                                                                                                                      |
-| ---------------------------------------------------- | ------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `dataSources`                                        | array   | `["ADGM_FREEZONE", "DIFC_FREEZONE"]` | `DUBAI_MAINLAND`, `ADGM_FREEZONE`, `DIFC_FREEZONE`. Abu Dhabi mainland, Sharjah, and other emirates are not offered — no real bulk public data exists for them (see ARCHITECTURE.md §0.5). |
-| `dubaiPulseApiKey`                                   | string  | —                                    | Required only if `dataSources` includes `DUBAI_MAINLAND`. See **Dubai mainland setup**.                                                                                                    |
-| `maxItems`                                           | integer | 50                                   | This actor's own per-run push cap, across all selected sources.                                                                                                                            |
-| `deltaStateName` / `resetState` / `onlyNew`          | —       | fleet defaults                       | Same convention as the rest of this fleet.                                                                                                                                                 |
-| `webhookUrl` / `slackWebhookUrl` / `teamsWebhookUrl` | string  | —                                    | See **Alerting** below.                                                                                                                                                                    |
+| Field                                                | Type    | Default                              | Notes                                                                                                                                                                                |
+| ---------------------------------------------------- | ------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `dataSources`                                        | array   | `["ADGM_FREEZONE", "DIFC_FREEZONE"]` | `DUBAI_MAINLAND`, `ADGM_FREEZONE`, `DIFC_FREEZONE`. Abu Dhabi mainland, Sharjah, and other emirates are not offered — no real bulk public data exists for them (see AGENTS.md §0.5). |
+| `dubaiPulseApiKey`                                   | string  | —                                    | Required only if `dataSources` includes `DUBAI_MAINLAND`. See **Dubai mainland setup**.                                                                                              |
+| `maxItems`                                           | integer | 50                                   | This actor's own per-run push cap, across all selected sources.                                                                                                                      |
+| `deltaStateName` / `resetState` / `onlyNew`          | —       | fleet defaults                       | Same convention as the rest of this fleet.                                                                                                                                           |
+| `webhookUrl` / `slackWebhookUrl` / `teamsWebhookUrl` | string  | —                                    | See **Alerting** below.                                                                                                                                                              |
 
 ## What this actor deliberately does not do
 
 - **No officer/manager/director tracking.** None of the three verified sources expose this in
   their public list views — only entity-level status, name, activity, and address. Detecting
   officer changes would require a paid or authenticated detailed-report tier this actor doesn't
-  have access to; see [ARCHITECTURE.md §3](ARCHITECTURE.md#3-corrected-mandate-assumptions).
+  have access to; see [AGENTS.md §3](AGENTS.md#3-corrected-mandate-assumptions).
 - **No numeric ISIC-style activity codes for the free-zone sources.** ADGM and DIFC expose named
   categories and free-text activity lists, not a numeric taxonomy.
 - **No coverage for Abu Dhabi mainland, Sharjah, or the other emirates.** Investigated and found
-  to have no real, bulk, per-company public data (see ARCHITECTURE.md §0.5) — not silently
+  to have no real, bulk, per-company public data (see AGENTS.md §0.5) — not silently
   omitted, not offered as a filter that would return nothing.
 - **No classic Microsoft Teams connector support** — retired; this actor uses the current
   "Workflows" webhook mechanism (see **Alerting** below).
@@ -178,7 +185,7 @@ registration number DED, ADGM, or DIFC themselves already use as each entity's s
 
 `status-changed` and `new-entity` always notify; `entity-updated` (a cosmetic content edit) is
 delivered and charged but not pushed to real-time channels — see
-[ARCHITECTURE.md §4](ARCHITECTURE.md#4-delta-engine-design-srcdeltaenginets). Every channel
+[AGENTS.md §4](AGENTS.md#4-delta-engine-design-srcdeltaenginets). Every channel
 receives both the English and (when available) Arabic commercial name, and a visual accent —
 red/"attention" for a status change, green/"good" for a brand-new entity — so the highest-priority
 signal is visible at a glance.
@@ -200,7 +207,7 @@ if needed (documented in [`src/notifier.ts`](src/notifier.ts)).
 
 ## Architecture
 
-Full spec in [ARCHITECTURE.md](ARCHITECTURE.md). Summary:
+Full spec in [AGENTS.md](AGENTS.md). Summary:
 
 ```
   Actor input ──▶ src/main.ts (migrating/aborting-safe state flush,
@@ -215,13 +222,13 @@ Full spec in [ARCHITECTURE.md](ARCHITECTURE.md). Summary:
   .ts (best-effort,     (Salesforce Aura RPC, (Next.js API proxy,
   requires user's own   anonymous, fwuid      anonymous, offset-
   API key - see          bootstrapped fresh    paginated - the
-  ARCHITECTURE.md §0.2) each run)              simplest integration)
+  AGENTS.md §0.2) each run)              simplest integration)
           │             │                     │
           └─────────────┴─────────┬───────────┘
                                    ▼
        src/bilingualNormalizer.ts: Arabic diacritic/alef/yeh/
        digit normalization (ASCII source, runtime-built regexes -
-       see ARCHITECTURE.md §2), English legal-form canonicalization
+       see AGENTS.md §2), English legal-form canonicalization
                                    │
                                    ▼
        src/deltaEngine.ts: normalize -> SHA-256 status + content
@@ -247,34 +254,34 @@ npm test
 
 135 real, passing tests across 11 files:
 
-- [`tests/bilingualNormalizer.test.ts`](tests/bilingualNormalizer.test.ts) — unit and
+- [`test/bilingualNormalizer.test.ts`](test/bilingualNormalizer.test.ts) — unit and
   **property-based** (via `fast-check`) tests for Arabic diacritic/alef/yeh/digit normalization,
   bidi-control stripping, and English legal-form canonicalization — including the real trailing-
-  period regex bug this suite caught during development (see ARCHITECTURE.md §2).
-- [`tests/fuzzing.test.ts`](tests/fuzzing.test.ts) — dedicated stochastic fuzzing (an explicit
+  period regex bug this suite caught during development (see AGENTS.md §2).
+- [`test/fuzzing.test.ts`](test/fuzzing.test.ts) — dedicated stochastic fuzzing (an explicit
   mandate deliverable): random mixed Arabic/English/bidi-control/astral-plane-surrogate-pair
   strings verifying zero-crash guarantees across the full normalization and entity-normalization
   pipeline, plus malformed-row handling that fails loudly rather than silently.
-- [`tests/deltaEngine.test.ts`](tests/deltaEngine.test.ts) — per-source normalization against real
+- [`test/deltaEngine.test.ts`](test/deltaEngine.test.ts) — per-source normalization against real
   captured field shapes, SHA-256 fingerprint behavior, and the full classify/shouldDeliver state
   machine, including a regression test for the real `onlyNew`/`ENTITY_UNCHANGED` delivery bug this
-  suite caught during development (see ARCHITECTURE.md §4).
-- [`tests/adgmSource.test.ts`](tests/adgmSource.test.ts) / [`tests/difcSource.test.ts`](tests/difcSource.test.ts) / [`tests/dubaiPulseSource.test.ts`](tests/dubaiPulseSource.test.ts) —
+  suite caught during development (see AGENTS.md §4).
+- [`test/adgmSource.test.ts`](test/adgmSource.test.ts) / [`test/difcSource.test.ts`](test/difcSource.test.ts) / [`test/dubaiPulseSource.test.ts`](test/dubaiPulseSource.test.ts) —
   HTTP retry/backoff/timeout, pagination, non-retryable-4xx handling, and (for Dubai Pulse
   specifically) defensive multi-shape response-envelope handling and full coverage of both the
   license and trade-name fetchers.
-- [`tests/notifier.test.ts`](tests/notifier.test.ts) — payload-shape, escaping, bilingual-name, and
+- [`test/notifier.test.ts`](test/notifier.test.ts) — payload-shape, escaping, bilingual-name, and
   status-accent-color tests for all three channels, including a regression test for the real Slack
-  `<!channel>`-injection bug this suite caught during development (see ARCHITECTURE.md §7.1).
-- [`tests/state.test.ts`](tests/state.test.ts) — Key-Value Store round-tripping.
-- [`tests/routes.test.ts`](tests/routes.test.ts) — unit tests for the pure per-entity logic.
-- [`tests/integration.test.ts`](tests/integration.test.ts) — a full multi-run, multi-source
+  `<!channel>`-injection bug this suite caught during development (see AGENTS.md §7.1).
+- [`test/state.test.ts`](test/state.test.ts) — Key-Value Store round-tripping.
+- [`test/routes.test.ts`](test/routes.test.ts) — unit tests for the pure per-entity logic.
+- [`test/integration.test.ts`](test/integration.test.ts) — a full multi-run, multi-source
   lifecycle simulation (baseline → unchanged → a real status change and a cosmetic update in the
   same run → a new entity) verifying every delta trigger fires correctly, plus regression tests
   for maxItems-truncation safety, per-source failure isolation, the `eventChargeLimitReached` stop
   condition, Dubai-mainland's no-API-key skip path, and a malformed-row-alongside-a-valid-row case
   exercised through `run()` itself.
-- [`tests/main.test.ts`](tests/main.test.ts) — shutdown-safety wiring: the `migrating`/`aborting`
+- [`test/main.test.ts`](test/main.test.ts) — shutdown-safety wiring: the `migrating`/`aborting`
   handlers actually flush state when invoked, a flush failure never crashes the shutdown path, and
   state is saved even when `run()` fails.
 
@@ -283,13 +290,15 @@ already passed cleanly (a Slack injection vector, a silent data-join collision, 
 being dropped entirely, a normalizer bug in this module's own documented example, dead
 configuration, three test-coverage gaps, and a transcription error in this very README) - the full
 list, with the exact failure scenario for each, is in
-[ARCHITECTURE.md §7](ARCHITECTURE.md#7-adversarial-review-findings).
+[AGENTS.md §7](AGENTS.md#7-adversarial-review-findings).
 
 ## CI/CD
 
-[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml): every push and pull request runs
-lint, type-check/build, and the full test suite; a push to `main` that passes all three then
-deploys via the Apify CLI using an `APIFY_TOKEN` repository secret.
+[`.github/workflows/test.yaml`](.github/workflows/test.yaml): every push and pull request runs
+lint, type-check/build, and the full test suite — a public quality signal, not a deploy pipeline.
+Deployment to Apify is manual (`apify login --token` + `apify push`), matching how every actor
+across this developer's portfolio is actually shipped; see
+[`docs/GITHUB_REMOTE_SETUP.md`](docs/GITHUB_REMOTE_SETUP.md) for detail.
 
 ---
 

@@ -3,7 +3,7 @@
 **Scope:** what to do about the two live, ongoing, government-side outages affecting this actor's
 default data sources (ADGM_FREEZONE, DIFC_FREEZONE), and how to safely re-enable full multi-source
 polling once they recover. This is an operational document, not a design document — see
-[`../ARCHITECTURE.md`](../ARCHITECTURE.md) for the actor's own resilience design (retry/backoff,
+[`../../AGENTS.md`](../../AGENTS.md) for the actor's own resilience design (retry/backoff,
 `NonRetryableFetchError` classification, per-source failure isolation).
 
 ## Current, confirmed status (as of 2026-09-17, 4 independent checks between 04:56 and 05:25 UTC)
@@ -95,14 +95,14 @@ hours apart, to rule out a flapping/intermittent recovery rather than a genuine 
 2. **No code change is needed to re-enable a source that's already in the default `dataSources`
    array** (`ADGM_FREEZONE` and `DIFC_FREEZONE` both already are — see
    `.actor/input_schema.json`). Recovery on the government's end is enough; this actor's own retry
-   and error-handling code was never the blocker (see `docs/ARCHITECTURE.md`'s 2026-09-17 update
+   and error-handling code was never the blocker (see `AGENTS.md`'s 2026-09-17 update
    in the "Retry and error-handling design" section).
 3. **Update this playbook and `.actor/audit_manifest.json`'s `resilienceAudit`/`knownRisks`
    fields** to reflect the recovery date and remove the "HIGH, UNRESOLVED, EXTERNAL" risk entry —
    leave a dated note rather than silently deleting the history of the incident, so a future reader
    understands this actor has weathered a real, multi-day-or-longer external outage before.
 4. **If only one of the two sources recovers first,** there is nothing else to do — the actor's
-   existing per-source isolation (see `docs/ARCHITECTURE.md`) already delivers whatever the
+   existing per-source isolation (see `AGENTS.md`) already delivers whatever the
    healthy source finds while continuing to gracefully skip the still-down one. No manual
    toggling of `dataSources` is needed either way; a still-down source degrades gracefully on its
    own each run regardless of what else is enabled.
@@ -114,6 +114,6 @@ That assumption was checked, not assumed: both failures were reproduced independ
 times, directly against the real endpoints, outside of any Apify run, using fresh tokens/requests
 each time — ruling out a stale-credential or actor-side caching explanation. If a future probe
 ever shows a DIFFERENT error shape than the two documented signatures (`DOWN_UNKNOWN` rather than
-`DOWN_KNOWN`), do not assume this playbook still applies without rereading `docs/ARCHITECTURE.md`'s
+`DOWN_KNOWN`), do not assume this playbook still applies without rereading `AGENTS.md`'s
 resilience section and re-verifying the new failure mode the same way — a different failure could
 have a different, possibly actor-side, cause.
