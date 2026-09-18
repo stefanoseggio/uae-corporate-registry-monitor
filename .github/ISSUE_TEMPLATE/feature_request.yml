@@ -1,0 +1,60 @@
+name: Feature Request
+description: Propose a new input field, output field, or data-source addition
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Proposing a new emirate, officer/director tracking, or a numeric activity-code taxonomy?
+        Read this Actor's compliance doctrine first (README → "What this actor deliberately does
+        not do", AGENTS.md §0) — a source or field that isn't exposed by a real, bulk, anonymous
+        public register will be declined regardless of how useful it would be.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the real use case this would unblock, not just the feature itself.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: What input field, output field, or data source would you like to see added?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - New input filter
+        - New output field
+        - New data-source / emirate coverage
+        - Delta-engine / classification logic change
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Can this already be achieved with existing inputs (e.g. dataSources, maxItems)? If so, why isn't that sufficient?
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I confirmed this isn't already possible with an existing input field (see README → Input reference)
+          required: true
+        - label: If this proposes a new data source, I confirmed it's a real, bulk, anonymous public register (no UAE Pass login wall, no per-record-only lookup)
+          required: false
