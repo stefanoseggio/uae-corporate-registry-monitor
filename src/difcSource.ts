@@ -5,7 +5,7 @@ const HANDLE_REQUEST_URL = 'https://www.difc.com/api/handleRequest';
 const USER_AGENT = 'Mozilla/5.0 (compatible; DeltaRegistryComplianceMonitor/1.0; +https://apify.com)';
 const MAX_RETRY_ATTEMPTS = 5;
 const REQUEST_TIMEOUT_MS = 30_000;
-/** The real page size observed live for this endpoint (10 rows per default-list response, see ARCHITECTURE.md section 0.4). Not independently confirmable as configurable - no page-size parameter was observed in the real captured request, so this actor paginates purely via `offset`. */
+/** The real page size observed live for this endpoint (10 rows per default-list response, see AGENTS.md section 0.4). Not independently confirmable as configurable - no page-size parameter was observed in the real captured request, so this actor paginates purely via `offset`. */
 const OBSERVED_PAGE_SIZE = 10;
 
 interface DifcApiResponse {
@@ -16,7 +16,7 @@ interface DifcApiResponse {
 
 /**
  * DIFC's public register is served through a simple, real, anonymous Next.js API proxy route -
- * live-verified this session (see ARCHITECTURE.md section 0.4): `POST /api/handleRequest` with a
+ * live-verified this session (see AGENTS.md section 0.4): `POST /api/handleRequest` with a
  * `{name, licenseType, licenseNo, status, offset, slug: "/CRM/public-register", method: "POST"}`
  * body, all filter fields blank for full bulk enumeration. This is a dramatically simpler and more
  * stable integration than ADGM's Salesforce Aura RPC (no rotating framework-build id to bootstrap),

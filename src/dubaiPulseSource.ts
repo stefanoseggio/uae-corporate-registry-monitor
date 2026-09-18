@@ -15,7 +15,7 @@ const PAGE_LIMIT = 1000;
  * fleet), this integration could NOT be verified against a single byte of live Dubai Pulse traffic
  * during development - dubaipulse.gov.ae rejected every direct connection attempt made from this
  * development environment (WebFetch, browser navigation, and two independent third-party proxy
- * services all failed at the network level; see ARCHITECTURE.md section 0.2 for the full record).
+ * services all failed at the network level; see AGENTS.md section 0.2 for the full record).
  * What IS reasonably well corroborated, from a real archived snapshot of the dataset's own
  * documentation page and from a real (different-dataset) curl example surfaced by web search:
  *   - The DED license-master dataset's column schema (field names below) - HIGH confidence,

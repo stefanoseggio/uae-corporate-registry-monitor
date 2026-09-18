@@ -1,5 +1,5 @@
 /**
- * Three independently-verified data sources feed this actor - see ARCHITECTURE.md section 0 for
+ * Three independently-verified data sources feed this actor - see AGENTS.md section 0 for
  * the live verification record. Each has a genuinely different wire protocol and field vocabulary,
  * so raw row shapes are kept separate per source and mapped into the shared `NormalizedEntity`
  * envelope by deltaEngine.ts's per-source normalize functions.
@@ -11,7 +11,7 @@ export class NonRetryableFetchError extends Error {}
 
 export const ALL_DATA_SOURCES: DataSourceId[] = ['DUBAI_MAINLAND', 'ADGM_FREEZONE', 'DIFC_FREEZONE'];
 
-/** The single, federally-recognized Dubai Pulse dataset for DED (mainland Dubai) trade licenses - schema confirmed from the dataset's own published column documentation, NOT from a live-fetched row (see ARCHITECTURE.md section 0.2: dubaipulse.gov.ae rejected every direct connection attempted in this development environment). Field names/order match the archived dataset page exactly. */
+/** The single, federally-recognized Dubai Pulse dataset for DED (mainland Dubai) trade licenses - schema confirmed from the dataset's own published column documentation, NOT from a live-fetched row (see AGENTS.md section 0.2: dubaipulse.gov.ae rejected every direct connection attempted in this development environment). Field names/order match the archived dataset page exactly. */
 export interface DubaiLicenseRow {
     license_number: string;
     initial_approval_number: string | null;
@@ -42,7 +42,7 @@ export interface DubaiTradeNameRow {
 
 /**
  * ADGM's public register, live-verified via its real guest-accessible (aura.token=null) Salesforce
- * Aura RPC endpoint (RASearchUtil.getSearchResponseForPR) - see ARCHITECTURE.md section 0.3. Field
+ * Aura RPC endpoint (RASearchUtil.getSearchResponseForPR) - see AGENTS.md section 0.3. Field
  * names are the exact `Account`-object API names observed in a real response this session.
  */
 export interface AdgmEntityRow {
@@ -62,7 +62,7 @@ export interface AdgmEntityRow {
 
 /**
  * DIFC's public register, live-verified via its real anonymous Next.js API proxy
- * (`POST /api/handleRequest`, `slug: "/CRM/public-register"`) - see ARCHITECTURE.md section 0.4.
+ * (`POST /api/handleRequest`, `slug: "/CRM/public-register"`) - see AGENTS.md section 0.4.
  * Field names are the exact API field names observed in a real response this session.
  */
 export interface DifcCompanyRow {
@@ -85,7 +85,7 @@ export interface DifcCompanyRow {
  * Officer/manager/beneficial-owner data is deliberately NOT modeled here - none of the three
  * verified public sources expose officer-level detail in their list/search views (only entity-level
  * status, name, activity and address fields). The original mandate's "officer/manager updates"
- * detection target was corrected out for this reason; see ARCHITECTURE.md section 3.
+ * detection target was corrected out for this reason; see AGENTS.md section 3.
  */
 export interface NormalizedEntity {
     dataSource: DataSourceId;

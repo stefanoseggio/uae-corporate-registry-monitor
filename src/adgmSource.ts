@@ -13,7 +13,7 @@ const PAGE_SIZE = 50;
 /**
  * The exact `jsonSearchString` field-schema object ADGM's own guest search page echoes back to
  * itself between its "get search config" call and its "submit search" call - captured verbatim
- * from a real, live response this session (see ARCHITECTURE.md section 0.3). Only
+ * from a real, live response this session (see AGENTS.md section 0.3). Only
  * `generalSearch[0].headers[0].value` (the name filter), `pageNumber`, and `pageSize` are mutated
  * per request; everything else is ADGM's own object-model metadata, not user-specific state, so
  * reusing a captured copy rather than re-fetching the config every run is a deliberate
@@ -436,7 +436,7 @@ async function postAuraSearch(bootstrap: AuraBootstrap, nameFilter: string, page
 
 /**
  * Fetches every page of ADGM's public register with a blank name filter (true bulk enumeration,
- * not a per-company lookup - see ARCHITECTURE.md section 0.3 for the live confirmation that a
+ * not a per-company lookup - see AGENTS.md section 0.3 for the live confirmation that a
  * blank search returns "Displaying 1 - 10 of 18745 Results" with full pagination). Stops when a
  * page returns fewer rows than PAGE_SIZE (the standard last-page signal) or an empty page.
  */

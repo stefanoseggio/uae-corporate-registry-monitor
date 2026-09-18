@@ -6,7 +6,7 @@
         "dataSources": {
             "title": "Data sources to check",
             "type": "array",
-            "description": "Which live, independently-verified UAE corporate registries to check this run. ADGM_FREEZONE (Abu Dhabi Global Market) and DIFC_FREEZONE (Dubai International Financial Centre) are both real, live, anonymous, bulk-queryable public registers - no setup required. DUBAI_MAINLAND (Dubai's DED trade-license register via the Dubai Pulse open-data portal) additionally requires your own approved dubaiPulseApiKey below (see README 'Dubai mainland setup') - no bulk, anonymous, general-commerce mainland registry exists for Abu Dhabi, Sharjah, or the other emirates (confirmed by live investigation; see ARCHITECTURE.md section 0), so they are not offered here.",
+            "description": "Which live, independently-verified UAE corporate registries to check this run. ADGM_FREEZONE (Abu Dhabi Global Market) and DIFC_FREEZONE (Dubai International Financial Centre) are both real, live, anonymous, bulk-queryable public registers - no setup required. DUBAI_MAINLAND (Dubai's DED trade-license register via the Dubai Pulse open-data portal) additionally requires your own approved dubaiPulseApiKey below (see README 'Dubai mainland setup') - no bulk, anonymous, general-commerce mainland registry exists for Abu Dhabi, Sharjah, or the other emirates (confirmed by live investigation; see AGENTS.md section 0), so they are not offered here.",
             "editor": "select",
             "items": {
                 "type": "string",

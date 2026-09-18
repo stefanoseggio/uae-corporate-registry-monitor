@@ -59,7 +59,7 @@ export function normalizeAdgmEntity(row: AdgmEntityRow): NormalizedEntity {
         registrationStatus: row.Entity_Status__c,
         licenseStatus: row.License_Status__c,
         // Found missing entirely by adversarial review: ADGM's real captured response includes a
-        // Trade_Names__r array (see ARCHITECTURE.md section 0.3), whose own Status__c (e.g. a trade
+        // Trade_Names__r array (see AGENTS.md section 0.3), whose own Status__c (e.g. a trade
         // name moving from "Active" to "Inactive") is a genuine status signal distinct from
         // Entity_Status__c/License_Status__c - previously dropped entirely, making it invisible to
         // the delta engine. The primary (first-listed) trade name is used, matching how ADGM's own
