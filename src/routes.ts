@@ -232,8 +232,9 @@ async function processDubaiMainland(state: DeltaState, input: ActorInput, scrape
 
 async function processAdgm(state: DeltaState, input: ActorInput, scrapedAt: string, stats: RunStats): Promise<void> {
     let rows;
+    let fetchComplete: boolean;
     try {
-        rows = await fetchAllAdgmEntities();
+        ({ rows, complete: fetchComplete } = await fetchAllAdgmEntities());
     } catch (error) {
         log.warning(
             `Could not download or parse ADGM_FREEZONE data: ${error instanceof Error ? error.message : String(error)}. Skipping ADGM_FREEZONE for this run - other selected sources are unaffected.`,
@@ -269,7 +270,15 @@ async function processAdgm(state: DeltaState, input: ActorInput, scrapedAt: stri
         await processEntity(entity, 'ADGM_FREEZONE', state, input, scrapedAt, stats);
     }
 
-    if (!stats.stopped) {
+    // CONFIRMED BUG FIX: only credit a completed baseline when fetchAllAdgmEntities() actually
+    // reached a genuine last/short page this run (fetchComplete) - not merely because the row loop
+    // above didn't hit maxItems/eventChargeLimitReached (!stats.stopped). A run whose fetch itself
+    // was cut short (the run-level time budget guard, or the MAX_PAGES safety valve, in
+    // adgmSource.ts) never saw the rest of the register, so marking baselineComplete: true here
+    // would make every not-yet-seen real entity look like a brand-new NEW_ENTITY (and get
+    // re-notified/re-charged) the first time a future run actually reaches it, instead of correctly
+    // still being treated as part of an unfinished baseline.
+    if (!stats.stopped && fetchComplete) {
         recordSourceChecked(state, 'ADGM_FREEZONE', {
             lastChecked: scrapedAt,
             baselineComplete: true,
@@ -279,8 +288,9 @@ async function processAdgm(state: DeltaState, input: ActorInput, scrapedAt: stri
 
 async function processDifc(state: DeltaState, input: ActorInput, scrapedAt: string, stats: RunStats): Promise<void> {
     let rows;
+    let fetchComplete: boolean;
     try {
-        rows = await fetchAllDifcCompanies();
+        ({ rows, complete: fetchComplete } = await fetchAllDifcCompanies());
     } catch (error) {
         log.warning(
             `Could not download or parse DIFC_FREEZONE data: ${error instanceof Error ? error.message : String(error)}. Skipping DIFC_FREEZONE for this run - other selected sources are unaffected.`,
@@ -316,7 +326,9 @@ async function processDifc(state: DeltaState, input: ActorInput, scrapedAt: stri
         await processEntity(entity, 'DIFC_FREEZONE', state, input, scrapedAt, stats);
     }
 
-    if (!stats.stopped) {
+    // CONFIRMED BUG FIX: see the identical comment in processAdgm above - only credit a completed
+    // baseline when fetchAllDifcCompanies() actually reached a genuine last/short page this run.
+    if (!stats.stopped && fetchComplete) {
         recordSourceChecked(state, 'DIFC_FREEZONE', {
             lastChecked: scrapedAt,
             baselineComplete: true,

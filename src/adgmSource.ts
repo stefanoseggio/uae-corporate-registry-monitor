@@ -1,5 +1,6 @@
 import { log } from 'apify';
 
+import { createRunDeadline, type RunDeadline } from './timeBudget.js';
 import type { AdgmEntityRow } from './types.js';
 import { NonRetryableFetchError } from './types.js';
 
@@ -9,6 +10,12 @@ const USER_AGENT = 'Mozilla/5.0 (compatible; DeltaRegistryComplianceMonitor/1.0;
 const MAX_RETRY_ATTEMPTS = 5;
 const REQUEST_TIMEOUT_MS = 30_000;
 const PAGE_SIZE = 50;
+/**
+ * Reserved for row processing/pushing/notifying of whatever ADGM rows are already collected once
+ * fetching stops, plus DIFC_FREEZONE still queued behind ADGM_FREEZONE in routes.ts's run() loop
+ * when both are selected (the actor's DEFAULT_DATA_SOURCES) - see timeBudget.ts.
+ */
+const FETCH_TIME_BUDGET_SAFETY_MARGIN_MS = 60_000;
 
 /**
  * The exact `jsonSearchString` field-schema object ADGM's own guest search page echoes back to
@@ -357,7 +364,7 @@ interface AuraApexResponse {
     }[];
 }
 
-async function postAuraSearch(bootstrap: AuraBootstrap, nameFilter: string, pageNumber: number): Promise<AdgmEntityRow[]> {
+async function postAuraSearch(bootstrap: AuraBootstrap, nameFilter: string, pageNumber: number, deadline: RunDeadline): Promise<AdgmEntityRow[]> {
     const message = {
         actions: [
             {
@@ -385,8 +392,22 @@ async function postAuraSearch(bootstrap: AuraBootstrap, nameFilter: string, page
     });
 
     let lastError: Error | undefined;
+    let attemptsMade = 0;
+    let abandonedForTimeBudget = false;
     for (let attempt = 0; attempt < MAX_RETRY_ATTEMPTS; attempt += 1) {
         if (attempt > 0) {
+            // CONFIRMED BUG FIX: this retry loop used to back off and retry unconditionally, with
+            // no awareness of the actor's own run timeout - a single page whose every attempt
+            // times out could alone burn up to ~189s (5 x 30s REQUEST_TIMEOUT_MS + ~39s of
+            // worst-case backoff below), and just a handful of such pages exhausts the actor's
+            // real 600s run timeout outright. Checking the real run deadline here means we abandon
+            // remaining retries for THIS page - throwing below, which processAdgm/fetchAllAdgmEntities
+            // already handle as a normal recoverable failure - rather than risking the whole run
+            // (and every page already fetched) being hard-killed by the platform with nothing pushed.
+            if (deadline.isExpired()) {
+                abandonedForTimeBudget = true;
+                break;
+            }
             // Exponential backoff plus up to 30% random jitter (matches tedClient.ts's
             // backoffDelay()) - without jitter, many concurrent Apify runs retrying on the exact
             // same 1s/2s/4s/8s/16s schedule could thunder-herd the same request at ADGM/DIFC.
@@ -395,6 +416,7 @@ async function postAuraSearch(bootstrap: AuraBootstrap, nameFilter: string, page
                 setTimeout(resolve, exponential + Math.random() * exponential * 0.3);
             });
         }
+        attemptsMade += 1;
         const timeoutController = new AbortController();
         const timeoutHandle = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS);
         try {
@@ -452,7 +474,17 @@ async function postAuraSearch(bootstrap: AuraBootstrap, nameFilter: string, page
             clearTimeout(timeoutHandle);
         }
     }
-    throw new Error(`ADGM Aura search failed after ${MAX_RETRY_ATTEMPTS} attempts: ${lastError?.message ?? 'unknown error'}`);
+    throw new Error(
+        abandonedForTimeBudget
+            ? `ADGM Aura search for page ${pageNumber} abandoned after ${attemptsMade} of ${MAX_RETRY_ATTEMPTS} attempt(s): the actor's run-level time budget is nearly exhausted, so remaining retries were skipped to leave time to push whatever pages were already fetched. Last error: ${lastError?.message ?? 'previous attempt(s) failed'}`
+            : `ADGM Aura search failed after ${MAX_RETRY_ATTEMPTS} attempts: ${lastError?.message ?? 'unknown error'}`,
+    );
+}
+
+/** `complete: false` means pagination stopped before a genuine last/short page was reached (a real full-register enumeration did NOT happen this run) - see fetchAllAdgmEntities. */
+export interface AdgmFetchResult {
+    rows: AdgmEntityRow[];
+    complete: boolean;
 }
 
 /**
@@ -460,8 +492,21 @@ async function postAuraSearch(bootstrap: AuraBootstrap, nameFilter: string, page
  * not a per-company lookup - see AGENTS.md section 0.3 for the live confirmation that a
  * blank search returns "Displaying 1 - 10 of 18745 Results" with full pagination). Stops when a
  * page returns fewer rows than PAGE_SIZE (the standard last-page signal) or an empty page.
+ *
+ * CONFIRMED BUG FIX: this used to always report a full enumeration to its caller regardless of how
+ * pagination actually ended. `complete` now distinguishes a genuine last-page stop from an early
+ * stop (the MAX_PAGES safety valve, or the new run-level time budget guard below) - routes.ts uses
+ * this to avoid marking ADGM_FREEZONE's delta baseline complete after a run that never actually
+ * finished enumerating the register, which would otherwise misclassify every not-yet-reached real
+ * entity as a brand-new NEW_ENTITY (and re-notify/re-charge for it) once a later run finally reaches
+ * it, rather than correctly treating it as still part of an unfinished baseline.
  */
-export async function fetchAllAdgmEntities(): Promise<AdgmEntityRow[]> {
+export async function fetchAllAdgmEntities(): Promise<AdgmFetchResult> {
+    // See timeBudget.ts: the actor's real, live run deadline (Actor.getEnv().timeoutAt), not a
+    // hardcoded copy of timeoutSecs. Checked before each retry attempt (in postAuraSearch) and
+    // before each new page below, so pagination and per-page retries self-terminate with a real
+    // safety margin instead of risking the whole run being hard-killed mid-fetch.
+    const deadline = createRunDeadline(FETCH_TIME_BUDGET_SAFETY_MARGIN_MS);
     const bootstrap = await fetchAuraBootstrap();
     const allRows: AdgmEntityRow[] = [];
     let pageNumber = 1;
@@ -470,8 +515,16 @@ export async function fetchAllAdgmEntities(): Promise<AdgmEntityRow[]> {
     // near-term growth of ADGM's register, so hitting this indicates a genuine pagination bug
     // (e.g. an endless duplicate page) rather than legitimate exhaustive coverage being cut short.
     const MAX_PAGES = 2000;
+    let stoppedForTimeBudget = false;
     while (pageNumber <= MAX_PAGES) {
-        const rows = await postAuraSearch(bootstrap, '', pageNumber);
+        if (pageNumber > 1 && deadline.isExpired()) {
+            stoppedForTimeBudget = true;
+            log.warning(
+                `ADGM_FREEZONE: stopping pagination early at page ${pageNumber} (${allRows.length} entities collected so far) because the actor's run-level time budget is nearly exhausted. This is NOT a full enumeration of ADGM's register this run - the baseline will not be marked complete, so every remaining entity is safely re-evaluated on a future run instead of being misclassified as newly appeared.`,
+            );
+            break;
+        }
+        const rows = await postAuraSearch(bootstrap, '', pageNumber, deadline);
         allRows.push(...rows);
         if (rows.length < PAGE_SIZE) break;
         pageNumber += 1;
@@ -481,5 +534,6 @@ export async function fetchAllAdgmEntities(): Promise<AdgmEntityRow[]> {
             `ADGM pagination exceeded ${MAX_PAGES} pages without reaching a final short page - stopping early. This may indicate a real ADGM site change; ${allRows.length} entities were collected before stopping.`,
         );
     }
-    return allRows;
+    const complete = !stoppedForTimeBudget && pageNumber <= MAX_PAGES;
+    return { rows: allRows, complete };
 }
