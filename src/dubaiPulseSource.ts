@@ -74,6 +74,14 @@ async function fetchDubaiPulsePage<T>(url: string, apiKey: string, offset: numbe
         const timeoutHandle = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS);
         try {
             const requestUrl = `${url}?limit=${PAGE_LIMIT}&offset=${offset}`;
+            // Deliberately still native fetch, NOT impit, unlike adgmSource.ts/difcSource.ts.
+            // Confirmed 2026-09-19: impit (both `chrome` and `firefox` impersonation modes) fails
+            // the TLS handshake against api.dubaipulse.gov.ae outright - reproducibly - with
+            // `PeerMisbehaved(SelectedUnusableCipherSuiteForVersion)` from its Rust TLS stack.
+            // Native fetch connects fine (a real HTTP 401 without a valid key, proving the
+            // handshake and connection succeed). This is a domain-honest exception (same category
+            // as diario-oficial-cl-monitor staying on native fetch entirely), not an oversight -
+            // see AGENTS.md's "HTTP transport" section.
             const response = await fetch(requestUrl, {
                 headers: {
                     Authorization: apiKey,

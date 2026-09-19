@@ -1,8 +1,17 @@
 import { log } from 'apify';
+import { Impit } from 'impit';
 
 import { createRunDeadline, type RunDeadline } from './timeBudget.js';
 import type { AdgmEntityRow } from './types.js';
 import { NonRetryableFetchError } from './types.js';
+
+// impit gives every request a real, internally-consistent Chrome TLS/HTTP2 fingerprint (JA3/JA4),
+// unlike Node's native fetch/undici, whose fingerprint is a well-known automation signal to
+// bot-management layers. A single module-level instance is reused across every ADGM request
+// (bootstrap page load and every paginated Aura POST) so they share one connection pool/cookie
+// jar, exactly like a real browser tab would. See AGENTS.md's "HTTP transport" section for why
+// this is applied here but NOT in dubaiPulseSource.ts.
+const impit = new Impit({ browser: 'chrome' });
 
 const SEARCH_PAGE_URL = 'https://newreg.adgm.com/s/search-results';
 const AURA_ENDPOINT = 'https://newreg.adgm.com/s/sfsites/aura';
@@ -319,7 +328,7 @@ interface AuraBootstrap {
  * initial page load before making any Aura call.
  */
 async function fetchAuraBootstrap(): Promise<AuraBootstrap> {
-    const response = await fetch(SEARCH_PAGE_URL, {
+    const response = await impit.fetch(SEARCH_PAGE_URL, {
         headers: { 'User-Agent': USER_AGENT },
     });
     if (!response.ok) {
@@ -420,7 +429,7 @@ async function postAuraSearch(bootstrap: AuraBootstrap, nameFilter: string, page
         const timeoutController = new AbortController();
         const timeoutHandle = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS);
         try {
-            const response = await fetch(`${AURA_ENDPOINT}?r=${pageNumber}&aura.ApexAction.execute=1`, {
+            const response = await impit.fetch(`${AURA_ENDPOINT}?r=${pageNumber}&aura.ApexAction.execute=1`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
