@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { classify, normalizeAdgmEntity } from '../src/deltaEngine.js';
-import { computeEventId, eventNameFor, isHighValueChange, toOutputRecord } from '../src/routes.js';
+import { buildZeroRecordsDespiteBaselineMessage, computeEventId, eventNameFor, isHighValueChange, shouldWarnAllSourcesZeroDespiteBaseline, toOutputRecord } from '../src/routes.js';
 import type { AdgmEntityRow, DeltaState } from '../src/types.js';
 
 vi.mock('apify', () => ({
@@ -132,5 +132,37 @@ describe('toOutputRecord / computeEventId', () => {
         expect(record.registration_status).toBe('Deregistered');
         expect(record.data_source).toBe('ADGM_FREEZONE');
         expect(record.free_zone).toBe(true);
+    });
+});
+
+describe('shouldWarnAllSourcesZeroDespiteBaseline', () => {
+    it('is false when nothing was attempted this run', () => {
+        expect(shouldWarnAllSourcesZeroDespiteBaseline({}, { ADGM_FREEZONE: true })).toBe(false);
+    });
+
+    it('is true when every attempted source returned zero rows and at least one has an established baseline', () => {
+        expect(shouldWarnAllSourcesZeroDespiteBaseline({ ADGM_FREEZONE: 0, DIFC_FREEZONE: 0 }, { ADGM_FREEZONE: true, DIFC_FREEZONE: true })).toBe(true);
+    });
+
+    it('is true when only ONE of the two sources with an established baseline is true, as long as ALL attempted sources are zero', () => {
+        expect(shouldWarnAllSourcesZeroDespiteBaseline({ ADGM_FREEZONE: 0, DIFC_FREEZONE: 0 }, { ADGM_FREEZONE: false, DIFC_FREEZONE: true })).toBe(true);
+    });
+
+    it('is false when no attempted source has an established baseline (a fresh actor legitimately getting nothing yet)', () => {
+        expect(shouldWarnAllSourcesZeroDespiteBaseline({ ADGM_FREEZONE: 0, DIFC_FREEZONE: 0 }, {})).toBe(false);
+    });
+
+    it('is false when at least one attempted source returned real rows, even if the others are zero', () => {
+        expect(shouldWarnAllSourcesZeroDespiteBaseline({ ADGM_FREEZONE: 0, DIFC_FREEZONE: 12 }, { ADGM_FREEZONE: true, DIFC_FREEZONE: true })).toBe(false);
+    });
+});
+
+describe('buildZeroRecordsDespiteBaselineMessage', () => {
+    it('names every attempted source and reads as a clear, non-generic warning', () => {
+        const message = buildZeroRecordsDespiteBaselineMessage(['ADGM_FREEZONE', 'DIFC_FREEZONE']);
+        expect(message).toContain('ADGM_FREEZONE');
+        expect(message).toContain('DIFC_FREEZONE');
+        expect(message).toMatch(/zero records/i);
+        expect(message).toMatch(/established baseline/i);
     });
 });

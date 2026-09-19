@@ -20,6 +20,14 @@ export interface RunStats {
     stopped: boolean;
     sourcesChecked: number;
     byEventType: Record<string, number>;
+    /**
+     * Real row count actually obtained from each source's fetch THIS run - 0 when the fetch threw
+     * (network/parse error) or when the suspected-fetch-failure guard short-circuited it, the real
+     * `rows.length` otherwise. A source only gets an entry here if it was genuinely attempted (a
+     * requested source deliberately skipped for missing config, e.g. DUBAI_MAINLAND with no API
+     * key, never gets one). Used by `shouldWarnAllSourcesZeroDespiteBaseline` below.
+     */
+    sourceRowCounts: Partial<Record<DataSourceId, number>>;
 }
 
 export function computeEventId(classified: ClassifiedEvent): string {
@@ -114,6 +122,40 @@ function suspectedFetchFailure(state: DeltaState, dataSource: DataSourceId, rowC
     return previouslyTracked;
 }
 
+/**
+ * Confirmed live finding (see AGENTS.md section 0): ADGM's Salesforce Aura backend can throw a
+ * NullPointerException and DIFC's endpoint can return a consistent HTTP 500 for non-browser HTTP
+ * clients - including, very plausibly, from Apify's cloud workers - while a real browser session on
+ * the identical page succeeds. Both failure modes are caught by processAdgm/processDifc's own
+ * try/catch and logged as warnings, so the run still reports SUCCEEDED even though its zero-config
+ * default sources (ADGM_FREEZONE, DIFC_FREEZONE) delivered zero real records. A per-source log
+ * warning is easy to miss without reading full logs.
+ *
+ * This is a second, run-level layer of defense, separate from the per-source
+ * `suspectedFetchFailure` row-count guard above: it fires only when EVERY source actually attempted
+ * this run came back with zero real rows (whether from a thrown fetch error or a short-circuited
+ * suspected-failure), AND at least one of those sources has a real, previously-established baseline
+ * (i.e. this is not just a fresh actor's very first, legitimately-empty run). That combination is
+ * far more consistent with every default source's fetch quietly breaking at once than with a
+ * genuine simultaneous real-world event wiping out every tracked source's data.
+ */
+export function shouldWarnAllSourcesZeroDespiteBaseline(sourceRowCounts: Partial<Record<DataSourceId, number>>, hadEstablishedBaseline: Partial<Record<DataSourceId, boolean>>): boolean {
+    const attemptedSources = Object.keys(sourceRowCounts) as DataSourceId[];
+    if (attemptedSources.length === 0) return false;
+    const allZero = attemptedSources.every((source) => (sourceRowCounts[source] ?? 0) === 0);
+    if (!allZero) return false;
+    return attemptedSources.some((source) => hadEstablishedBaseline[source] === true);
+}
+
+export function buildZeroRecordsDespiteBaselineMessage(attemptedSources: DataSourceId[]): string {
+    return (
+        `WARNING: all ${attemptedSources.length} attempted data source(s) this run (${attemptedSources.join(', ')}) returned zero records, despite at least one having ` +
+        `an established baseline from a previous successful run. This strongly suggests a broken fetch (e.g. an upstream API/schema change or a non-browser-client ` +
+        `block) rather than a genuine simultaneous real-world event across every source - check the run log for fetch errors before treating this as a legitimate ` +
+        `all-quiet run.`
+    );
+}
+
 async function processEntity(entity: NormalizedEntity, dataSource: DataSourceId, state: DeltaState, input: ActorInput, scrapedAt: string, stats: RunStats): Promise<void> {
     const onlyNew = input.onlyNew ?? true;
     const sourceCacheEntry = state.sourceCache[dataSource];
@@ -199,12 +241,16 @@ async function processDubaiMainland(state: DeltaState, input: ActorInput, scrape
     try {
         [licenses, tradeNames] = await Promise.all([fetchAllDubaiLicenses(input.dubaiPulseApiKey), fetchAllDubaiTradeNames(input.dubaiPulseApiKey)]);
     } catch (error) {
+        // eslint-disable-next-line no-param-reassign
+        stats.sourceRowCounts.DUBAI_MAINLAND = 0;
         log.warning(
             `Could not download or parse Dubai Pulse mainland data: ${error instanceof Error ? error.message : String(error)}. Skipping DUBAI_MAINLAND for this run - other selected sources are unaffected.`,
         );
         return;
     }
 
+    // eslint-disable-next-line no-param-reassign
+    stats.sourceRowCounts.DUBAI_MAINLAND = licenses.length;
     // eslint-disable-next-line no-param-reassign
     stats.sourcesChecked += 1;
     const tradeNameByLicenseNumber = buildTradeNameIndex(tradeNames);
@@ -235,12 +281,16 @@ async function processAdgm(state: DeltaState, input: ActorInput, scrapedAt: stri
     try {
         rows = await fetchAllAdgmEntities();
     } catch (error) {
+        // eslint-disable-next-line no-param-reassign
+        stats.sourceRowCounts.ADGM_FREEZONE = 0;
         log.warning(
             `Could not download or parse ADGM_FREEZONE data: ${error instanceof Error ? error.message : String(error)}. Skipping ADGM_FREEZONE for this run - other selected sources are unaffected.`,
         );
         return;
     }
 
+    // eslint-disable-next-line no-param-reassign
+    stats.sourceRowCounts.ADGM_FREEZONE = rows.length;
     const suspectedPrevCount = suspectedFetchFailure(state, 'ADGM_FREEZONE', rows.length);
     if (suspectedPrevCount !== undefined) {
         // Deliberately mirrors the catch block above: return BEFORE incrementing stats.sourcesChecked,
@@ -282,12 +332,16 @@ async function processDifc(state: DeltaState, input: ActorInput, scrapedAt: stri
     try {
         rows = await fetchAllDifcCompanies();
     } catch (error) {
+        // eslint-disable-next-line no-param-reassign
+        stats.sourceRowCounts.DIFC_FREEZONE = 0;
         log.warning(
             `Could not download or parse DIFC_FREEZONE data: ${error instanceof Error ? error.message : String(error)}. Skipping DIFC_FREEZONE for this run - other selected sources are unaffected.`,
         );
         return;
     }
 
+    // eslint-disable-next-line no-param-reassign
+    stats.sourceRowCounts.DIFC_FREEZONE = rows.length;
     const suspectedPrevCount = suspectedFetchFailure(state, 'DIFC_FREEZONE', rows.length);
     if (suspectedPrevCount !== undefined) {
         // Deliberately mirrors the catch block above: return BEFORE incrementing stats.sourcesChecked,
@@ -331,9 +385,18 @@ export async function run(input: ActorInput, state: DeltaState): Promise<RunStat
         stopped: false,
         sourcesChecked: 0,
         byEventType: {},
+        sourceRowCounts: {},
     };
     const requestedSources = input.dataSources && input.dataSources.length > 0 ? input.dataSources : DEFAULT_DATA_SOURCES;
     const sources = requestedSources.filter((source) => ALL_DATA_SOURCES.includes(source));
+
+    // Snapshot each source's established-baseline flag BEFORE this run touches state.sourceCache,
+    // so the zero-records-despite-baseline check below reflects a real track record this run
+    // inherited, not one this same (possibly broken) run just created.
+    const hadEstablishedBaseline: Partial<Record<DataSourceId, boolean>> = {};
+    for (const source of ALL_DATA_SOURCES) {
+        hadEstablishedBaseline[source] = state.sourceCache[source]?.baselineComplete === true;
+    }
 
     for (const source of sources) {
         if (stats.stopped) break;
@@ -344,6 +407,13 @@ export async function run(input: ActorInput, state: DeltaState): Promise<RunStat
         } else if (source === 'DIFC_FREEZONE') {
             await processDifc(state, input, scrapedAt, stats);
         }
+    }
+
+    if (shouldWarnAllSourcesZeroDespiteBaseline(stats.sourceRowCounts, hadEstablishedBaseline)) {
+        const attemptedSources = Object.keys(stats.sourceRowCounts) as DataSourceId[];
+        const message = buildZeroRecordsDespiteBaselineMessage(attemptedSources);
+        log.error(message);
+        await Actor.setStatusMessage(message, { level: 'WARNING' });
     }
 
     return stats;

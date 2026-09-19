@@ -19,6 +19,7 @@ vi.mock('apify', () => ({
             pushedRecords.push({ record, eventName });
             return { eventChargeLimitReached: false, chargedCount: eventName ? 1 : 0, chargeableWithinLimit: {} };
         }),
+        setStatusMessage: vi.fn(async () => ({})),
     },
     log: { info: vi.fn(), warning: vi.fn(), error: vi.fn() },
 }));
@@ -95,6 +96,7 @@ afterEach(() => {
     fetchAllDubaiTradeNames.mockReset();
     vi.mocked(fetch).mockClear();
     vi.mocked(Actor.pushData).mockClear();
+    vi.mocked(Actor.setStatusMessage).mockClear();
 });
 
 describe('Full entity lifecycle across data sources: baseline -> unchanged -> status change -> new entity', () => {
@@ -329,5 +331,89 @@ describe('Full entity lifecycle across data sources: baseline -> unchanged -> st
         expect(Object.keys(state.entities)).toEqual(['ADGM_FREEZONE::1002', 'DIFC_FREEZONE::2002']);
         expect(state.sourceCache.ADGM_FREEZONE?.baselineComplete).toBe(true); // the run still completed and baselined normally
         expect(state.sourceCache.DIFC_FREEZONE?.baselineComplete).toBe(true);
+    });
+
+    describe('CONFIRMED LIVE FINDING: both default sources (ADGM_FREEZONE, DIFC_FREEZONE) failing for non-browser HTTP clients - NPE from ADGM Aura, HTTP 500 from DIFC - must surface a visible run-level warning, not just a buried log line', () => {
+        it('sets a WARNING-level Actor.setStatusMessage when every attempted default source throws (fetch failure) in the same run while at least one has an established baseline', async () => {
+            const state = emptyState();
+            // A real, established track record from past good runs - exactly what would be sitting in
+            // persisted delta state in production before ADGM/DIFC's non-browser-client blocks appeared.
+            state.sourceCache.ADGM_FREEZONE = { lastChecked: '2026-09-01T00:00:00.000Z', baselineComplete: true };
+            state.sourceCache.DIFC_FREEZONE = { lastChecked: '2026-09-01T00:00:00.000Z', baselineComplete: true };
+
+            fetchAllAdgmEntities.mockRejectedValueOnce(new Error('Cannot read properties of null (reading \'records\') - Salesforce Aura RASearchUtil NullPointerException'));
+            fetchAllDifcCompanies.mockRejectedValueOnce(new Error('DIFC public-register proxy responded 500'));
+
+            const stats = await run({ dataSources: ['ADGM_FREEZONE', 'DIFC_FREEZONE'], onlyNew: false } as never, state);
+
+            expect(stats.totalPushed).toBe(0);
+            expect(stats.sourcesChecked).toBe(0);
+            expect(Actor.setStatusMessage).toHaveBeenCalledTimes(1);
+            const [message, options] = vi.mocked(Actor.setStatusMessage).mock.calls[0];
+            expect(message).toMatch(/zero records/i);
+            expect(message).toMatch(/established baseline/i);
+            expect(message).toContain('ADGM_FREEZONE');
+            expect(message).toContain('DIFC_FREEZONE');
+            expect(options).toEqual({ level: 'WARNING' });
+        });
+
+        it('does NOT warn when the sources genuinely have nothing new to report (real rows fetched, just no deltas) - a quiet run must not be flagged as broken', async () => {
+            const state = emptyState();
+            // Run 1: a real baseline-establishing run (real computed fingerprints via the actual
+            // normalize/classify pipeline, not stubbed ones) so run 2 below classifies as a genuine
+            // ENTITY_UNCHANGED rather than an ENTITY_UPDATED caused by a mismatched fake fingerprint.
+            fetchAllAdgmEntities.mockResolvedValueOnce([adgmRow({ Registration_Number__c: '1000' })]);
+            fetchAllDifcCompanies.mockResolvedValueOnce([difcRow({ Registration_License_No__c: '2000' })]);
+            await run({ dataSources: ['ADGM_FREEZONE', 'DIFC_FREEZONE'], onlyNew: false } as never, state);
+            vi.mocked(Actor.setStatusMessage).mockClear();
+
+            // Run 2: both sources still returning their previously-seen row unchanged - onlyNew=true
+            // means nothing gets pushed, but real rows WERE obtained from both fetches this run.
+            fetchAllAdgmEntities.mockResolvedValueOnce([adgmRow({ Registration_Number__c: '1000' })]);
+            fetchAllDifcCompanies.mockResolvedValueOnce([difcRow({ Registration_License_No__c: '2000' })]);
+            const stats = await run({ dataSources: ['ADGM_FREEZONE', 'DIFC_FREEZONE'], onlyNew: true } as never, state);
+
+            // Both rows classified as ENTITY_UNCHANGED and, with onlyNew=true, correctly filtered out
+            // before delivery/charging - real rows were fetched from both sources this run, though.
+            expect(stats.totalPushed).toBe(0);
+            expect(stats.sourcesChecked).toBe(2);
+            expect(Actor.setStatusMessage).not.toHaveBeenCalled();
+        });
+
+        it('does NOT warn on a fresh actor\'s first-ever run with no established baseline yet, even if every source throws', async () => {
+            const state = emptyState();
+
+            fetchAllAdgmEntities.mockRejectedValueOnce(new Error('simulated NPE'));
+            fetchAllDifcCompanies.mockRejectedValueOnce(new Error('simulated 500'));
+
+            const stats = await run({ dataSources: ['ADGM_FREEZONE', 'DIFC_FREEZONE'], onlyNew: false } as never, state);
+
+            expect(stats.totalPushed).toBe(0);
+            expect(Actor.setStatusMessage).not.toHaveBeenCalled();
+        });
+
+        it('does NOT warn when only one of two attempted sources fails - the other still delivering real rows is proof this is not an all-sources outage', async () => {
+            const state = emptyState();
+            state.sourceCache.ADGM_FREEZONE = { lastChecked: '2026-09-01T00:00:00.000Z', baselineComplete: true };
+            state.sourceCache.DIFC_FREEZONE = { lastChecked: '2026-09-01T00:00:00.000Z', baselineComplete: true };
+
+            fetchAllAdgmEntities.mockRejectedValueOnce(new Error('simulated NPE'));
+            fetchAllDifcCompanies.mockResolvedValueOnce([difcRow()]);
+
+            const stats = await run({ dataSources: ['ADGM_FREEZONE', 'DIFC_FREEZONE'], onlyNew: false } as never, state);
+
+            expect(stats.sourcesChecked).toBe(1);
+            expect(Actor.setStatusMessage).not.toHaveBeenCalled();
+        });
+
+        it('does NOT warn when the only requested source is DUBAI_MAINLAND without an API key - a deliberate config skip, not an attempted-and-failed fetch', async () => {
+            const state = emptyState();
+            state.sourceCache.ADGM_FREEZONE = { lastChecked: '2026-09-01T00:00:00.000Z', baselineComplete: true };
+
+            const stats = await run({ dataSources: ['DUBAI_MAINLAND'], onlyNew: false } as never, state);
+
+            expect(stats.sourcesChecked).toBe(0);
+            expect(Actor.setStatusMessage).not.toHaveBeenCalled();
+        });
     });
 });
