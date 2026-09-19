@@ -49,6 +49,7 @@ function row(overrides: Partial<AdgmEntityRow> = {}): AdgmEntityRow {
 
 afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
     vi.useRealTimers();
 });
@@ -73,8 +74,9 @@ describe('fetchAllAdgmEntities', () => {
         });
         vi.stubGlobal('fetch', fetchMock);
 
-        const rows = await fetchAllAdgmEntities();
-        expect(rows).toHaveLength(2);
+        const result = await fetchAllAdgmEntities();
+        expect(result.rows).toHaveLength(2);
+        expect(result.complete).toBe(true); // a genuine short page was reached
         expect(fetchMock).toHaveBeenCalledTimes(2); // one bootstrap GET, one aura POST (page short of PAGE_SIZE, stops)
     });
 
@@ -92,8 +94,9 @@ describe('fetchAllAdgmEntities', () => {
         });
         vi.stubGlobal('fetch', fetchMock);
 
-        const rows = await fetchAllAdgmEntities();
-        expect(rows).toHaveLength(51);
+        const result = await fetchAllAdgmEntities();
+        expect(result.rows).toHaveLength(51);
+        expect(result.complete).toBe(true);
         expect(auraCallCount).toBe(2);
     });
 
@@ -133,8 +136,9 @@ describe('fetchAllAdgmEntities', () => {
         });
         vi.stubGlobal('fetch', fetchMock);
 
-        const rows = await withFakeRetryTimers(async () => fetchAllAdgmEntities());
-        expect(rows).toHaveLength(1);
+        const result = await withFakeRetryTimers(async () => fetchAllAdgmEntities());
+        expect(result.rows).toHaveLength(1);
+        expect(result.complete).toBe(true);
         expect(auraAttempts).toBe(2);
     });
 
@@ -177,8 +181,9 @@ describe('fetchAllAdgmEntities', () => {
         });
         vi.stubGlobal('fetch', fetchMock);
 
-        const rows = await fetchAllAdgmEntities();
-        expect(rows).toEqual([]);
+        const result = await fetchAllAdgmEntities();
+        expect(result.rows).toEqual([]);
+        expect(result.complete).toBe(true);
     });
 
     it('does not retry a non-retryable 4xx from the Aura endpoint - fails immediately, likely indicating a stale fwuid', async () => {
@@ -192,5 +197,63 @@ describe('fetchAllAdgmEntities', () => {
         vi.stubGlobal('fetch', fetchMock);
 
         await expect(fetchAllAdgmEntities()).rejects.toThrow(/stale fwuid|400/);
+    });
+
+    describe('run-level time budget guard (CONFIRMED BUG FIX)', () => {
+        it('stops pagination BEFORE starting another page once the actor\'s real run deadline (Actor.getEnv().timeoutAt) is within the safety margin - keeping the pages already fetched instead of paginating until the platform hard-kills the run', async () => {
+            // Real run deadline only 1s away - comfortably inside FETCH_TIME_BUDGET_SAFETY_MARGIN_MS
+            // (60s), so the guard must already be expired by the time page 2 would be considered.
+            vi.stubEnv('ACTOR_TIMEOUT_AT', new Date(Date.now() + 1_000).toISOString());
+            const fullPage = Array.from({ length: 50 }, (_, i) => row({ Id: `p1-${i}`, Registration_Number__c: `p1-${i}` }));
+            let auraCallCount = 0;
+            const fetchMock = vi.fn(async (url: string, options?: { method?: string }) => {
+                if (url === SEARCH_PAGE_URL) return { ok: true, status: 200, text: async () => bootstrapHtml() };
+                if (url.startsWith(AURA_ENDPOINT_PREFIX) && options?.method === 'POST') {
+                    auraCallCount += 1;
+                    // Always a full page - without the guard this would paginate forever (bounded
+                    // only by MAX_PAGES=2000), never returning within any real run timeout.
+                    return { ok: true, status: 200, json: async () => auraSuccessResponse(fullPage) };
+                }
+                throw new Error(`Unexpected fetch: ${url}`);
+            });
+            vi.stubGlobal('fetch', fetchMock);
+
+            const result = await fetchAllAdgmEntities();
+            expect(auraCallCount).toBe(1); // page 1 only - page 2 was never attempted
+            expect(result.rows).toHaveLength(50); // page 1's rows are still returned, not discarded
+            expect(result.complete).toBe(false); // NOT a genuine full enumeration this run
+        });
+
+        it('abandons remaining retries for a page once the run-level time budget is nearly exhausted, instead of retrying through backoff that would itself blow the actor\'s own run timeout', async () => {
+            vi.stubEnv('ACTOR_TIMEOUT_AT', new Date(Date.now() + 1_000).toISOString());
+            let auraAttempts = 0;
+            const fetchMock = vi.fn(async (url: string, options?: { method?: string }) => {
+                if (url === SEARCH_PAGE_URL) return { ok: true, status: 200, text: async () => bootstrapHtml() };
+                if (url.startsWith(AURA_ENDPOINT_PREFIX) && options?.method === 'POST') {
+                    auraAttempts += 1;
+                    return { ok: false, status: 503 }; // always a retryable failure
+                }
+                throw new Error(`Unexpected fetch: ${url}`);
+            });
+            vi.stubGlobal('fetch', fetchMock);
+
+            await expect(fetchAllAdgmEntities()).rejects.toThrow(/abandoned.*time budget/i);
+            expect(auraAttempts).toBe(1); // only the first attempt - the remaining 4 retries were skipped
+        });
+
+        it('still completes normally when no real run deadline is known (local dev/tests) - the guard never expires', async () => {
+            // No ACTOR_TIMEOUT_AT/APIFY_TIMEOUT_AT stubbed at all - Actor.getEnv().timeoutAt is null.
+            const fetchMock = vi.fn(async (url: string, options?: { method?: string }) => {
+                if (url === SEARCH_PAGE_URL) return { ok: true, status: 200, text: async () => bootstrapHtml() };
+                if (url.startsWith(AURA_ENDPOINT_PREFIX) && options?.method === 'POST') {
+                    return { ok: true, status: 200, json: async () => auraSuccessResponse([row()]) };
+                }
+                throw new Error(`Unexpected fetch: ${url}`);
+            });
+            vi.stubGlobal('fetch', fetchMock);
+
+            const result = await fetchAllAdgmEntities();
+            expect(result.complete).toBe(true);
+        });
     });
 });

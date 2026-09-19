@@ -29,6 +29,7 @@ function successResponse(companyList: DifcCompanyRow[]): object {
 
 afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
     vi.useRealTimers();
 });
@@ -52,8 +53,9 @@ describe('fetchAllDifcCompanies', () => {
         });
         vi.stubGlobal('fetch', fetchMock);
 
-        const rows = await fetchAllDifcCompanies();
-        expect(rows).toHaveLength(2);
+        const result = await fetchAllDifcCompanies();
+        expect(result.rows).toHaveLength(2);
+        expect(result.complete).toBe(true);
         expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
@@ -68,8 +70,9 @@ describe('fetchAllDifcCompanies', () => {
         });
         vi.stubGlobal('fetch', fetchMock);
 
-        const rows = await fetchAllDifcCompanies();
-        expect(rows).toHaveLength(11);
+        const result = await fetchAllDifcCompanies();
+        expect(result.rows).toHaveLength(11);
+        expect(result.complete).toBe(true);
         expect(seenOffsets).toEqual([0, 10]);
     });
 
@@ -103,8 +106,9 @@ describe('fetchAllDifcCompanies', () => {
         });
         vi.stubGlobal('fetch', fetchMock);
 
-        const rows = await withFakeRetryTimers(async () => fetchAllDifcCompanies());
-        expect(rows).toHaveLength(1);
+        const result = await withFakeRetryTimers(async () => fetchAllDifcCompanies());
+        expect(result.rows).toHaveLength(1);
+        expect(result.complete).toBe(true);
         expect(attempts).toBe(2);
     });
 
@@ -120,7 +124,52 @@ describe('fetchAllDifcCompanies', () => {
         const fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => successResponse([]) }));
         vi.stubGlobal('fetch', fetchMock);
 
-        const rows = await fetchAllDifcCompanies();
-        expect(rows).toEqual([]);
+        const result = await fetchAllDifcCompanies();
+        expect(result.rows).toEqual([]);
+        expect(result.complete).toBe(true);
+    });
+
+    describe('run-level time budget guard (CONFIRMED BUG FIX)', () => {
+        it('stops pagination BEFORE fetching another page once the actor\'s real run deadline (Actor.getEnv().timeoutAt) is within the safety margin - keeping the pages already fetched instead of paginating until the platform hard-kills the run', async () => {
+            // Real run deadline only 1s away - comfortably inside FETCH_TIME_BUDGET_SAFETY_MARGIN_MS
+            // (60s), so the guard must already be expired by the time offset=10 would be considered.
+            vi.stubEnv('ACTOR_TIMEOUT_AT', new Date(Date.now() + 1_000).toISOString());
+            const fullPage = Array.from({ length: 10 }, (_, i) => row({ Id: `p1-${i}`, Registration_License_No__c: `p1-${i}` }));
+            let callCount = 0;
+            const fetchMock = vi.fn(async () => {
+                callCount += 1;
+                // Always a full page - without the guard this would paginate forever (bounded only
+                // by MAX_PAGES=5000), never returning within any real run timeout.
+                return { ok: true, status: 200, json: async () => successResponse(fullPage) };
+            });
+            vi.stubGlobal('fetch', fetchMock);
+
+            const result = await fetchAllDifcCompanies();
+            expect(callCount).toBe(1); // offset 0 only - offset 10 was never attempted
+            expect(result.rows).toHaveLength(10); // the first page's rows are still returned, not discarded
+            expect(result.complete).toBe(false); // NOT a genuine full enumeration this run
+        });
+
+        it('abandons remaining retries for a page once the run-level time budget is nearly exhausted, instead of retrying through backoff that would itself blow the actor\'s own run timeout', async () => {
+            vi.stubEnv('ACTOR_TIMEOUT_AT', new Date(Date.now() + 1_000).toISOString());
+            let attempts = 0;
+            const fetchMock = vi.fn(async () => {
+                attempts += 1;
+                return { ok: false, status: 503 }; // always a retryable failure
+            });
+            vi.stubGlobal('fetch', fetchMock);
+
+            await expect(fetchAllDifcCompanies()).rejects.toThrow(/abandoned.*time budget/i);
+            expect(attempts).toBe(1); // only the first attempt - the remaining 4 retries were skipped
+        });
+
+        it('still completes normally when no real run deadline is known (local dev/tests) - the guard never expires', async () => {
+            // No ACTOR_TIMEOUT_AT/APIFY_TIMEOUT_AT stubbed at all - Actor.getEnv().timeoutAt is null.
+            const fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => successResponse([row()]) }));
+            vi.stubGlobal('fetch', fetchMock);
+
+            const result = await fetchAllDifcCompanies();
+            expect(result.complete).toBe(true);
+        });
     });
 });
