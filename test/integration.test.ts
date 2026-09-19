@@ -233,6 +233,91 @@ describe('Full entity lifecycle across data sources: baseline -> unchanged -> st
         expect(state.sourceCache.ADGM_FREEZONE?.baselineComplete).toBe(true);
     });
 
+    it('CONFIRMED BUG FIX: a fetch that "succeeds" (no thrown error) but returns 0 rows while a real, large baseline is already tracked is treated as a suspected fetch failure, not a mass closure - state is left untouched and a later good run does NOT fire a false NEW_ENTITY storm', async () => {
+        const state = emptyState();
+        const realRows = Array.from({ length: 25 }, (_, i) => adgmRow({ Id: `row-${i}`, Registration_Number__c: String(i) }));
+
+        // Run 1: establish a real, healthy baseline of 25 tracked ADGM entities (above the
+        // suspected-fetch-failure guard's minimum-previous-count floor), exactly as a real fleet of
+        // past good runs would have left behind in persisted delta state - using real computed
+        // fingerprints, not stubbed ones.
+        fetchAllAdgmEntities.mockResolvedValueOnce(realRows);
+        const statsBaseline = await run({ dataSources: ['ADGM_FREEZONE'], onlyNew: false } as never, state);
+        expect(statsBaseline.byEventType.BASELINE_SNAPSHOT).toBe(25);
+        expect(state.sourceCache.ADGM_FREEZONE?.baselineComplete).toBe(true);
+        const entitiesBefore = { ...state.entities };
+        const lastCheckedBefore = state.sourceCache.ADGM_FREEZONE?.lastChecked;
+        notifiedRecords.length = 0;
+
+        // Run 2: this run's fetch resolves successfully (not a thrown error) with zero rows -
+        // simulating a shifted/broken response that technically parsed, or a redirected/bot-check
+        // page - while 25 real entities are already known-tracked for this source.
+        fetchAllAdgmEntities.mockResolvedValueOnce([]);
+        const statsBadRun = await run({ dataSources: ['ADGM_FREEZONE'], onlyNew: false } as never, state);
+
+        // The suspected-failure guard must fire: no source-check credit, no entities touched, and
+        // crucially the baseline/state is NOT wiped or reset by this run.
+        expect(statsBadRun.sourcesChecked).toBe(0);
+        expect(statsBadRun.totalPushed).toBe(0);
+        expect(state.entities).toEqual(entitiesBefore);
+        expect(state.sourceCache.ADGM_FREEZONE?.baselineComplete).toBe(true);
+        expect(state.sourceCache.ADGM_FREEZONE?.lastChecked).toBe(lastCheckedBefore); // untouched, not refreshed by the bad run
+
+        // Run 3: the source recovers and returns the same real 25 entities unchanged. Because state
+        // was never poisoned by the bad run, every one of them must be correctly reclassified as
+        // ENTITY_UNCHANGED - NOT as a false NEW_ENTITY storm (which is exactly what would happen if
+        // the bad run above had wrongly wiped state.entities or reset baselineComplete to false).
+        fetchAllAdgmEntities.mockResolvedValueOnce(realRows);
+        const statsRecovered = await run({ dataSources: ['ADGM_FREEZONE'], onlyNew: false } as never, state);
+
+        expect(statsRecovered.sourcesChecked).toBe(1);
+        expect(statsRecovered.byEventType.NEW_ENTITY ?? 0).toBe(0);
+        expect(statsRecovered.byEventType.ENTITY_UNCHANGED).toBe(25);
+        expect(notifiedRecords).toHaveLength(0); // no false new-entity notification storm
+    });
+
+    it('CONFIRMED BUG FIX: the same suspected-fetch-failure guard protects DIFC_FREEZONE', async () => {
+        const state = emptyState();
+        for (let i = 0; i < 30; i += 1) {
+            state.entities[`DIFC_FREEZONE::${i}`] = {
+                statusFingerprint: 'fp-status',
+                contentFingerprint: 'fp-content',
+                registrationStatus: 'Active',
+                licenseStatus: 'Active',
+                tradeNameStatus: null,
+                lastSeen: '2026-01-01T00:00:00.000Z',
+            };
+        }
+        state.sourceCache.DIFC_FREEZONE = { lastChecked: '2026-01-01T00:00:00.000Z', baselineComplete: true };
+        const entitiesBefore = { ...state.entities };
+
+        fetchAllDifcCompanies.mockResolvedValueOnce([]);
+        const stats = await run({ dataSources: ['DIFC_FREEZONE'], onlyNew: false } as never, state);
+
+        expect(stats.sourcesChecked).toBe(0);
+        expect(state.entities).toEqual(entitiesBefore);
+        expect(state.sourceCache.DIFC_FREEZONE?.baselineComplete).toBe(true);
+    });
+
+    it('does NOT suspect a fetch failure for a small/fresh state below the minimum-previous-count floor - a genuinely small registry legitimately dropping to zero must still be trusted', async () => {
+        const state = emptyState();
+        state.entities['ADGM_FREEZONE::1'] = {
+            statusFingerprint: 'fp',
+            contentFingerprint: 'fp',
+            registrationStatus: 'Registered',
+            licenseStatus: 'Licensed',
+            tradeNameStatus: null,
+            lastSeen: '2026-01-01T00:00:00.000Z',
+        };
+        state.sourceCache.ADGM_FREEZONE = { lastChecked: '2026-01-01T00:00:00.000Z', baselineComplete: true };
+
+        fetchAllAdgmEntities.mockResolvedValueOnce([]);
+        const stats = await run({ dataSources: ['ADGM_FREEZONE'], onlyNew: false } as never, state);
+
+        expect(stats.sourcesChecked).toBe(1); // trusted as a real (tiny) result, not suspected
+        expect(state.sourceCache.ADGM_FREEZONE?.lastChecked).not.toBe('2026-01-01T00:00:00.000Z');
+    });
+
     it('a single malformed row (missing its required identifier field) is logged and skipped without aborting the rest of the run - found untested by adversarial review, exercising the per-row try/catch/continue in processAdgm/processDifc/processDubaiMainland through run() rather than only unit-testing normalize*Entity in isolation', async () => {
         const state = emptyState();
         fetchAllAdgmEntities.mockResolvedValueOnce([adgmRow({ Registration_Number__c: '' }), adgmRow({ Registration_Number__c: '1002' })]);

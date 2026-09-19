@@ -138,6 +138,49 @@ describe('fetchAllAdgmEntities', () => {
         expect(auraAttempts).toBe(2);
     });
 
+    it('throws (does NOT silently return an empty array) when the Aura action reports SUCCESS but the expected returnValue.returnValue.data.data path is missing - a shifted/broken response shape, not a real empty page', async () => {
+        const fetchMock = vi.fn(async (url: string, options?: { method?: string }) => {
+            if (url === SEARCH_PAGE_URL) return { ok: true, status: 200, text: async () => bootstrapHtml() };
+            if (url.startsWith(AURA_ENDPOINT_PREFIX) && options?.method === 'POST') {
+                // SUCCESS, but the nested data.data path a real response always has is entirely
+                // absent - e.g. ADGM reshaping its Salesforce Aura envelope, or a bot-check/
+                // interstitial page that still happens to parse as this JSON shape.
+                return { ok: true, status: 200, json: async () => ({ actions: [{ id: '1;a', state: 'SUCCESS', returnValue: { returnValue: {} } }] }) };
+            }
+            throw new Error(`Unexpected fetch: ${url}`);
+        });
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(fetchAllAdgmEntities()).rejects.toThrow(/did not contain the expected/);
+    });
+
+    it('throws when the Aura action reports SUCCESS but data.data is present and not an array (e.g. a renamed/reshaped field)', async () => {
+        const fetchMock = vi.fn(async (url: string, options?: { method?: string }) => {
+            if (url === SEARCH_PAGE_URL) return { ok: true, status: 200, text: async () => bootstrapHtml() };
+            if (url.startsWith(AURA_ENDPOINT_PREFIX) && options?.method === 'POST') {
+                return { ok: true, status: 200, json: async () => ({ actions: [{ id: '1;a', state: 'SUCCESS', returnValue: { returnValue: { data: { data: 'not-an-array' } } } }] }) };
+            }
+            throw new Error(`Unexpected fetch: ${url}`);
+        });
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(fetchAllAdgmEntities()).rejects.toThrow(/did not contain the expected/);
+    });
+
+    it('still returns a real, well-formed empty page as an empty array (not an error) - a genuine last/short page must not be mistaken for a broken response', async () => {
+        const fetchMock = vi.fn(async (url: string, options?: { method?: string }) => {
+            if (url === SEARCH_PAGE_URL) return { ok: true, status: 200, text: async () => bootstrapHtml() };
+            if (url.startsWith(AURA_ENDPOINT_PREFIX) && options?.method === 'POST') {
+                return { ok: true, status: 200, json: async () => auraSuccessResponse([]) };
+            }
+            throw new Error(`Unexpected fetch: ${url}`);
+        });
+        vi.stubGlobal('fetch', fetchMock);
+
+        const rows = await fetchAllAdgmEntities();
+        expect(rows).toEqual([]);
+    });
+
     it('does not retry a non-retryable 4xx from the Aura endpoint - fails immediately, likely indicating a stale fwuid', async () => {
         const fetchMock = vi.fn(async (url: string, options?: { method?: string }) => {
             if (url === SEARCH_PAGE_URL) return { ok: true, status: 200, text: async () => bootstrapHtml() };

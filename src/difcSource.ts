@@ -69,7 +69,28 @@ async function fetchDifcPage(offset: number): Promise<DifcCompanyRow[]> {
                 // network condition - retrying it unchanged would just waste the retry budget.
                 throw new NonRetryableFetchError(`DIFC handleRequest reported failure: ${json.Message ?? 'no message'}`);
             }
-            return json.Data?.companyList ?? [];
+            // `IsSuccess: true` only confirms DIFC's own handleRequest proxy didn't reject the call -
+            // it says NOTHING about whether the expected Data.companyList array is actually present.
+            // Found by adversarial review: the previous `?? []` fallback here treated a
+            // structurally-broken response (DIFC's Next.js route reshaping its envelope, or returning
+            // IsSuccess:true with a redirected/empty shell body) exactly the same as a real,
+            // well-formed empty page - both silently became `[]`. Since fetchAllDifcCompanies() stops
+            // paginating as soon as one page returns fewer than OBSERVED_PAGE_SIZE rows, a shifted
+            // shape on the very first page reads as "DIFC's whole register is empty", which (via
+            // processDifc's recordSourceChecked) can wrongly mark this source's baseline as complete
+            // despite zero companies ever having been recorded - poisoning the delta baseline and
+            // causing every real company to be misclassified as a brand-new NEW_ENTITY (and
+            // re-notified/re-charged) the next time the fetch actually works. Only a *present* Data
+            // object whose own companyList field is a real Array is trusted as a genuine (possibly
+            // legitimately empty) result page - matching the existing "empty first page" test fixture
+            // exactly (`Data: { companyList: [] }`) - anything else is a structural break that must
+            // fail loudly instead of masquerading as "zero results".
+            if (json.Data === null || json.Data === undefined || !Array.isArray(json.Data.companyList)) {
+                throw new NonRetryableFetchError(
+                    `DIFC handleRequest reported IsSuccess but its response did not contain the expected Data.companyList array - the site's response shape may have changed. Raw response: ${JSON.stringify(json).slice(0, 500)}`,
+                );
+            }
+            return json.Data.companyList;
         } catch (error) {
             if (error instanceof NonRetryableFetchError) throw error;
             lastError = error instanceof Error ? error : new Error(String(error));
