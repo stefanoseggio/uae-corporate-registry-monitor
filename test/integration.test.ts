@@ -394,15 +394,15 @@ describe('Full entity lifecycle across data sources: baseline -> unchanged -> st
             // Run 1: a real baseline-establishing run (real computed fingerprints via the actual
             // normalize/classify pipeline, not stubbed ones) so run 2 below classifies as a genuine
             // ENTITY_UNCHANGED rather than an ENTITY_UPDATED caused by a mismatched fake fingerprint.
-            fetchAllAdgmEntities.mockResolvedValueOnce([adgmRow({ Registration_Number__c: '1000' })]);
-            fetchAllDifcCompanies.mockResolvedValueOnce([difcRow({ Registration_License_No__c: '2000' })]);
+            fetchAllAdgmEntities.mockResolvedValueOnce({ rows: [adgmRow({ Registration_Number__c: '1000' })], complete: true });
+            fetchAllDifcCompanies.mockResolvedValueOnce({ rows: [difcRow({ Registration_License_No__c: '2000' })], complete: true });
             await run({ dataSources: ['ADGM_FREEZONE', 'DIFC_FREEZONE'], onlyNew: false } as never, state);
             vi.mocked(Actor.setStatusMessage).mockClear();
 
             // Run 2: both sources still returning their previously-seen row unchanged - onlyNew=true
             // means nothing gets pushed, but real rows WERE obtained from both fetches this run.
-            fetchAllAdgmEntities.mockResolvedValueOnce([adgmRow({ Registration_Number__c: '1000' })]);
-            fetchAllDifcCompanies.mockResolvedValueOnce([difcRow({ Registration_License_No__c: '2000' })]);
+            fetchAllAdgmEntities.mockResolvedValueOnce({ rows: [adgmRow({ Registration_Number__c: '1000' })], complete: true });
+            fetchAllDifcCompanies.mockResolvedValueOnce({ rows: [difcRow({ Registration_License_No__c: '2000' })], complete: true });
             const stats = await run({ dataSources: ['ADGM_FREEZONE', 'DIFC_FREEZONE'], onlyNew: true } as never, state);
 
             // Both rows classified as ENTITY_UNCHANGED and, with onlyNew=true, correctly filtered out
@@ -430,7 +430,7 @@ describe('Full entity lifecycle across data sources: baseline -> unchanged -> st
             state.sourceCache.DIFC_FREEZONE = { lastChecked: '2026-09-01T00:00:00.000Z', baselineComplete: true };
 
             fetchAllAdgmEntities.mockRejectedValueOnce(new Error('simulated NPE'));
-            fetchAllDifcCompanies.mockResolvedValueOnce([difcRow()]);
+            fetchAllDifcCompanies.mockResolvedValueOnce({ rows: [difcRow()], complete: true });
 
             const stats = await run({ dataSources: ['ADGM_FREEZONE', 'DIFC_FREEZONE'], onlyNew: false } as never, state);
 
