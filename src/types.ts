@@ -64,6 +64,7 @@ export interface AdgmEntityRow {
  * DIFC's public register, live-verified via its real anonymous Next.js API proxy
  * (`POST /api/handleRequest`, `slug: "/CRM/public-register"`) - see AGENTS.md section 0.4.
  * Field names are the exact API field names observed in a real response this session.
+ * `Type_for_PR__c` (present on every real row) is deliberately left unmodeled/unread here - observed always `null` on real live data as of 2026-09-19, and its actual significance is unconfirmed, so it is intentionally omitted rather than guessed at.
  */
 export interface DifcCompanyRow {
     Id: string;
