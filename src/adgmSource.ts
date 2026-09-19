@@ -423,7 +423,28 @@ async function postAuraSearch(bootstrap: AuraBootstrap, nameFilter: string, page
                 // repeat failure, exactly like the non-retryable-4xx case above.
                 throw new NonRetryableFetchError(`ADGM Aura search action did not succeed: ${JSON.stringify(action?.error ?? 'unknown error')}`);
             }
-            return action.returnValue?.returnValue?.data?.data ?? [];
+            // `state === 'SUCCESS'` only confirms the Apex call itself didn't error - it says
+            // NOTHING about whether the expected `returnValue.returnValue.data.data` result path is
+            // actually present. Found by adversarial review: the previous `?? []` fallback here
+            // treated a structurally-broken response (a redirected/bot-check page that still parses
+            // as JSON, or ADGM reshaping RASearchUtil.getSearchResponseForPR's envelope) exactly the
+            // same as a real, well-formed empty page - both silently became `[]`. Since
+            // fetchAllAdgmEntities() stops paginating as soon as one page returns fewer than
+            // PAGE_SIZE rows, a shifted path on page 1 alone reads as "ADGM's whole register is
+            // empty", which (via processAdgm's recordSourceChecked) can wrongly mark this source's
+            // baseline as complete despite zero entities ever having been recorded - poisoning the
+            // delta baseline and causing every real entity to be misclassified as a brand-new
+            // NEW_ENTITY (and re-notified/re-charged) the next time the fetch actually works. Only a
+            // *present* `data` object whose own `data` field is a real Array is trusted as a genuine
+            // (possibly legitimately empty) result page; anything else is a structural break that
+            // must fail loudly instead of masquerading as "zero results".
+            const dataContainer = action.returnValue?.returnValue?.data;
+            if (dataContainer === undefined || dataContainer === null || !Array.isArray(dataContainer.data)) {
+                throw new NonRetryableFetchError(
+                    `ADGM Aura search reported SUCCESS but its response did not contain the expected returnValue.returnValue.data.data array - the site's response shape may have changed (or the page returned a bot-check/interstitial instead of real search results). Raw returnValue: ${JSON.stringify(action.returnValue).slice(0, 500)}`,
+                );
+            }
+            return dataContainer.data;
         } catch (error) {
             if (error instanceof NonRetryableFetchError) throw error;
             lastError = error instanceof Error ? error : new Error(String(error));

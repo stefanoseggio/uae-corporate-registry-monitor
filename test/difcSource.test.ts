@@ -80,6 +80,20 @@ describe('fetchAllDifcCompanies', () => {
         await expect(fetchAllDifcCompanies()).rejects.toThrow(/Something went wrong/);
     });
 
+    it('throws (does NOT silently return an empty array) when IsSuccess is true but Data is missing entirely - a shifted/broken response shape, not a real empty page', async () => {
+        const fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ IsSuccess: true, Message: null }) }));
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(fetchAllDifcCompanies()).rejects.toThrow(/did not contain the expected/);
+    });
+
+    it('throws when IsSuccess is true but Data.companyList is present and not an array (e.g. a renamed/reshaped field)', async () => {
+        const fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ Data: { companyList: 'not-an-array' }, IsSuccess: true, Message: null }) }));
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(fetchAllDifcCompanies()).rejects.toThrow(/did not contain the expected/);
+    });
+
     it('retries on a 5xx and succeeds once the server recovers', async () => {
         let attempts = 0;
         const fetchMock = vi.fn(async () => {

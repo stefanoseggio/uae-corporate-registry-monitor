@@ -79,6 +79,41 @@ export function isHighValueChange(classified: ClassifiedEvent): boolean {
     return classified.eventType === 'NEW_ENTITY' || classified.eventType === 'STATUS_CHANGED';
 }
 
+/**
+ * A previously-well-established source (a real, large prior baseline) suddenly reporting far fewer
+ * rows than before - with no thrown error, i.e. the fetch itself "succeeded" - is far more likely to
+ * be a broken/partial fetch (a shifted response shape the source module's own structural checks
+ * didn't happen to catch, a query-parameter regression, a bot-check page, a mid-outage partial
+ * response) than a genuine, real-world mass deregistration event across an entire government
+ * corporate registry in a single run. This is deliberately a SEPARATE, second layer of defense from
+ * adgmSource.ts/difcSource.ts's own structural response-shape checks: those catch a shifted/missing
+ * data *path*; this catches a structurally well-formed but implausibly small row *count*, which no
+ * shape check can see. `MIN_PREVIOUS_COUNT` keeps this from ever firing on a small/fresh/test state
+ * that has not yet built up a real track record.
+ */
+const SUSPECTED_FETCH_FAILURE_MIN_PREVIOUS_COUNT = 20;
+const SUSPECTED_FETCH_FAILURE_MAX_RETAINED_RATIO = 0.5;
+
+function countTrackedEntities(state: DeltaState, dataSource: DataSourceId): number {
+    const prefix = `${dataSource}::`;
+    let count = 0;
+    for (const recordId of Object.keys(state.entities)) {
+        if (recordId.startsWith(prefix)) count += 1;
+    }
+    return count;
+}
+
+/**
+ * Returns the previously-tracked count when this run's row count looks like a suspected fetch
+ * failure rather than a real mass closure/delisting, or `undefined` when it looks legitimate.
+ */
+function suspectedFetchFailure(state: DeltaState, dataSource: DataSourceId, rowCount: number): number | undefined {
+    const previouslyTracked = countTrackedEntities(state, dataSource);
+    if (previouslyTracked < SUSPECTED_FETCH_FAILURE_MIN_PREVIOUS_COUNT) return undefined;
+    if (rowCount >= previouslyTracked * SUSPECTED_FETCH_FAILURE_MAX_RETAINED_RATIO) return undefined;
+    return previouslyTracked;
+}
+
 async function processEntity(entity: NormalizedEntity, dataSource: DataSourceId, state: DeltaState, input: ActorInput, scrapedAt: string, stats: RunStats): Promise<void> {
     const onlyNew = input.onlyNew ?? true;
     const sourceCacheEntry = state.sourceCache[dataSource];
@@ -206,6 +241,18 @@ async function processAdgm(state: DeltaState, input: ActorInput, scrapedAt: stri
         return;
     }
 
+    const suspectedPrevCount = suspectedFetchFailure(state, 'ADGM_FREEZONE', rows.length);
+    if (suspectedPrevCount !== undefined) {
+        // Deliberately mirrors the catch block above: return BEFORE incrementing stats.sourcesChecked,
+        // touching state.entities, or calling recordSourceChecked, so nothing is wiped/overwritten and
+        // every previously-tracked ADGM record remains eligible for correct reclassification the next
+        // time this source returns a plausible row count.
+        log.error(
+            `ADGM_FREEZONE: this run returned only ${rows.length} row(s), down from ${suspectedPrevCount} previously-tracked entities - this looks like a broken or partial fetch, not a real mass deregistration across ADGM's entire register. Skipping ADGM_FREEZONE processing for this run and leaving all previously-tracked records untouched so a future good run can re-evaluate them correctly.`,
+        );
+        return;
+    }
+
     // eslint-disable-next-line no-param-reassign
     stats.sourcesChecked += 1;
     log.info(`ADGM_FREEZONE: parsing ${rows.length} real entity rows.`);
@@ -237,6 +284,18 @@ async function processDifc(state: DeltaState, input: ActorInput, scrapedAt: stri
     } catch (error) {
         log.warning(
             `Could not download or parse DIFC_FREEZONE data: ${error instanceof Error ? error.message : String(error)}. Skipping DIFC_FREEZONE for this run - other selected sources are unaffected.`,
+        );
+        return;
+    }
+
+    const suspectedPrevCount = suspectedFetchFailure(state, 'DIFC_FREEZONE', rows.length);
+    if (suspectedPrevCount !== undefined) {
+        // Deliberately mirrors the catch block above: return BEFORE incrementing stats.sourcesChecked,
+        // touching state.entities, or calling recordSourceChecked, so nothing is wiped/overwritten and
+        // every previously-tracked DIFC record remains eligible for correct reclassification the next
+        // time this source returns a plausible row count.
+        log.error(
+            `DIFC_FREEZONE: this run returned only ${rows.length} row(s), down from ${suspectedPrevCount} previously-tracked entities - this looks like a broken or partial fetch, not a real mass deregistration across DIFC's entire register. Skipping DIFC_FREEZONE processing for this run and leaving all previously-tracked records untouched so a future good run can re-evaluate them correctly.`,
         );
         return;
     }
