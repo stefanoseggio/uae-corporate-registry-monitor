@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.1](https://github.com/stefanoseggio/uae-corporate-registry-monitor/compare/uae-corporate-registry-monitor-v1.0.0...uae-corporate-registry-monitor-v1.0.1) (2026-09-19)
+
+
+### Bug Fixes
+
+* ADGM/DIFC retry-backoff ceiling can exceed the 600s run timeout ([#8](https://github.com/stefanoseggio/uae-corporate-registry-monitor/issues/8)) ([a4a11ae](https://github.com/stefanoseggio/uae-corporate-registry-monitor/commit/a4a11aed152c4d125a1d4248366bb6047efbe7be))
+* **ci:** pass RELEASE_PLEASE_TOKEN so release PRs skip the bot-approval gate ([d2bb916](https://github.com/stefanoseggio/uae-corporate-registry-monitor/commit/d2bb916cc3b7e566ecf95637e658cc353503ba40))
+* correct stale ARCHITECTURE.md references to AGENTS.md ([8c79aee](https://github.com/stefanoseggio/uae-corporate-registry-monitor/commit/8c79aeedf970e242254a4a8be3fbb45ae9828994))
+* warn via run statusMessage when all attempted sources return zero records despite an established baseline ([#9](https://github.com/stefanoseggio/uae-corporate-registry-monitor/issues/9)) ([bd9466b](https://github.com/stefanoseggio/uae-corporate-registry-monitor/commit/bd9466b824ca261212617755c6f229e02a460325))
+
 ## 2026-09-17
 
 Published to the Apify Store as `stefano_seggio/uae-corporate-registry-monitor` (actor ID
