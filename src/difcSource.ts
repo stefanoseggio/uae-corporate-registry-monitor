@@ -1,8 +1,17 @@
 import { log } from 'apify';
+import { Impit } from 'impit';
 
 import { createRunDeadline, type RunDeadline } from './timeBudget.js';
 import type { DifcCompanyRow } from './types.js';
 import { NonRetryableFetchError } from './types.js';
+
+// impit gives every request a real, internally-consistent Chrome TLS/HTTP2 fingerprint (JA3/JA4),
+// unlike Node's native fetch/undici, whose fingerprint is a well-known automation signal to
+// bot-management layers. A single module-level instance is reused across every paginated DIFC
+// request so they share one connection pool/cookie jar, exactly like a real browser tab would.
+// See AGENTS.md's "HTTP transport" section for why this is applied here but NOT in
+// dubaiPulseSource.ts.
+const impit = new Impit({ browser: 'chrome' });
 
 const HANDLE_REQUEST_URL = 'https://www.difc.com/api/handleRequest';
 const USER_AGENT = 'Mozilla/5.0 (compatible; DeltaRegistryComplianceMonitor/1.0; +https://apify.com)';
@@ -71,7 +80,7 @@ async function fetchDifcPage(offset: number, deadline: RunDeadline): Promise<Dif
         const timeoutController = new AbortController();
         const timeoutHandle = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS);
         try {
-            const response = await fetch(HANDLE_REQUEST_URL, {
+            const response = await impit.fetch(HANDLE_REQUEST_URL, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

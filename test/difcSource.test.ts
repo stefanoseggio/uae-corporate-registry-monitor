@@ -3,6 +3,19 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchAllDifcCompanies } from '../src/difcSource.js';
 import type { DifcCompanyRow } from '../src/types.js';
 
+// difcSource.ts now calls impit.fetch(...) via a module-level Impit instance instead of the
+// global fetch - stubbing globalThis.fetch (the old approach) would silently no-op, since impit
+// never goes through it. `vi.hoisted` defines the shared mock before `vi.mock`'s factory (both
+// are hoisted above these imports by vitest at runtime, regardless of source order) needs to
+// reference it.
+const { fetchMock } = vi.hoisted(() => ({ fetchMock: vi.fn() }));
+vi.mock('impit', () => ({
+    // eslint-disable-next-line prefer-arrow-callback -- must be a real constructible function (not an arrow function) so `new Impit(...)` in difcSource.ts returns an object whose `fetch` is this mock
+    Impit: vi.fn().mockImplementation(function ImpitMock() {
+        return { fetch: fetchMock };
+    }),
+}));
+
 const HANDLE_REQUEST_URL = 'https://www.difc.com/api/handleRequest';
 
 function row(overrides: Partial<DifcCompanyRow> = {}): DifcCompanyRow {
@@ -31,6 +44,10 @@ afterEach(() => {
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
+    // `vi.restoreAllMocks()` does not reliably clear a `vi.fn()` created via `vi.hoisted()` -
+    // found on a sibling actor in this fleet; without this, call counts/implementations leak
+    // across tests since `fetchMock` is one shared instance for the whole file.
+    fetchMock.mockReset();
     vi.useRealTimers();
 });
 
@@ -45,13 +62,12 @@ async function withFakeRetryTimers<T>(work: () => Promise<T>): Promise<T> {
 
 describe('fetchAllDifcCompanies', () => {
     it('submits an all-blank-filter request and returns the rows from a single short page', async () => {
-        const fetchMock = vi.fn(async (url: string, options: { body: string }) => {
+        fetchMock.mockImplementation(async (url: string, options: { body: string }) => {
             expect(url).toBe(HANDLE_REQUEST_URL);
             const body = JSON.parse(options.body);
             expect(body).toEqual({ name: '', licenseType: '', licenseNo: '', status: '', offset: 0, slug: '/CRM/public-register', method: 'POST' });
             return { ok: true, status: 200, json: async () => successResponse([row(), row({ Id: '0010J00001iuxZ4QAI', Registration_License_No__c: '2403' })]) };
         });
-        vi.stubGlobal('fetch', fetchMock);
 
         const result = await fetchAllDifcCompanies();
         expect(result.rows).toHaveLength(2);
@@ -63,12 +79,11 @@ describe('fetchAllDifcCompanies', () => {
         const fullPage = Array.from({ length: 10 }, (_, i) => row({ Id: `page1-${i}`, Registration_License_No__c: `p1-${i}` }));
         const shortPage = [row({ Id: 'page2-0', Registration_License_No__c: 'p2-0' })];
         const seenOffsets: number[] = [];
-        const fetchMock = vi.fn(async (_url: string, options: { body: string }) => {
+        fetchMock.mockImplementation(async (_url: string, options: { body: string }) => {
             const body = JSON.parse(options.body);
             seenOffsets.push(body.offset);
             return { ok: true, status: 200, json: async () => successResponse(body.offset === 0 ? fullPage : shortPage) };
         });
-        vi.stubGlobal('fetch', fetchMock);
 
         const result = await fetchAllDifcCompanies();
         expect(result.rows).toHaveLength(11);
@@ -77,34 +92,30 @@ describe('fetchAllDifcCompanies', () => {
     });
 
     it('throws when the API reports IsSuccess: false', async () => {
-        const fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ Data: null, IsSuccess: false, Message: 'Something went wrong' }) }));
-        vi.stubGlobal('fetch', fetchMock);
+        fetchMock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => ({ Data: null, IsSuccess: false, Message: 'Something went wrong' }) }));
 
         await expect(fetchAllDifcCompanies()).rejects.toThrow(/Something went wrong/);
     });
 
     it('throws (does NOT silently return an empty array) when IsSuccess is true but Data is missing entirely - a shifted/broken response shape, not a real empty page', async () => {
-        const fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ IsSuccess: true, Message: null }) }));
-        vi.stubGlobal('fetch', fetchMock);
+        fetchMock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => ({ IsSuccess: true, Message: null }) }));
 
         await expect(fetchAllDifcCompanies()).rejects.toThrow(/did not contain the expected/);
     });
 
     it('throws when IsSuccess is true but Data.companyList is present and not an array (e.g. a renamed/reshaped field)', async () => {
-        const fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ Data: { companyList: 'not-an-array' }, IsSuccess: true, Message: null }) }));
-        vi.stubGlobal('fetch', fetchMock);
+        fetchMock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => ({ Data: { companyList: 'not-an-array' }, IsSuccess: true, Message: null }) }));
 
         await expect(fetchAllDifcCompanies()).rejects.toThrow(/did not contain the expected/);
     });
 
     it('retries on a 5xx and succeeds once the server recovers', async () => {
         let attempts = 0;
-        const fetchMock = vi.fn(async () => {
+        fetchMock.mockImplementation(async () => {
             attempts += 1;
             if (attempts === 1) return { ok: false, status: 503 };
             return { ok: true, status: 200, json: async () => successResponse([row()]) };
         });
-        vi.stubGlobal('fetch', fetchMock);
 
         const result = await withFakeRetryTimers(async () => fetchAllDifcCompanies());
         expect(result.rows).toHaveLength(1);
@@ -113,16 +124,14 @@ describe('fetchAllDifcCompanies', () => {
     });
 
     it('does not retry a non-retryable 4xx', async () => {
-        const fetchMock = vi.fn(async () => ({ ok: false, status: 404 }));
-        vi.stubGlobal('fetch', fetchMock);
+        fetchMock.mockImplementation(async () => ({ ok: false, status: 404 }));
 
         await expect(fetchAllDifcCompanies()).rejects.toThrow(/404/);
         expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
     it('returns an empty array (not an error) if the very first page is already empty', async () => {
-        const fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => successResponse([]) }));
-        vi.stubGlobal('fetch', fetchMock);
+        fetchMock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => successResponse([]) }));
 
         const result = await fetchAllDifcCompanies();
         expect(result.rows).toEqual([]);
@@ -136,13 +145,12 @@ describe('fetchAllDifcCompanies', () => {
             vi.stubEnv('ACTOR_TIMEOUT_AT', new Date(Date.now() + 1_000).toISOString());
             const fullPage = Array.from({ length: 10 }, (_, i) => row({ Id: `p1-${i}`, Registration_License_No__c: `p1-${i}` }));
             let callCount = 0;
-            const fetchMock = vi.fn(async () => {
+            fetchMock.mockImplementation(async () => {
                 callCount += 1;
                 // Always a full page - without the guard this would paginate forever (bounded only
                 // by MAX_PAGES=5000), never returning within any real run timeout.
                 return { ok: true, status: 200, json: async () => successResponse(fullPage) };
             });
-            vi.stubGlobal('fetch', fetchMock);
 
             const result = await fetchAllDifcCompanies();
             expect(callCount).toBe(1); // offset 0 only - offset 10 was never attempted
@@ -153,11 +161,10 @@ describe('fetchAllDifcCompanies', () => {
         it('abandons remaining retries for a page once the run-level time budget is nearly exhausted, instead of retrying through backoff that would itself blow the actor\'s own run timeout', async () => {
             vi.stubEnv('ACTOR_TIMEOUT_AT', new Date(Date.now() + 1_000).toISOString());
             let attempts = 0;
-            const fetchMock = vi.fn(async () => {
+            fetchMock.mockImplementation(async () => {
                 attempts += 1;
                 return { ok: false, status: 503 }; // always a retryable failure
             });
-            vi.stubGlobal('fetch', fetchMock);
 
             await expect(fetchAllDifcCompanies()).rejects.toThrow(/abandoned.*time budget/i);
             expect(attempts).toBe(1); // only the first attempt - the remaining 4 retries were skipped
@@ -165,8 +172,7 @@ describe('fetchAllDifcCompanies', () => {
 
         it('still completes normally when no real run deadline is known (local dev/tests) - the guard never expires', async () => {
             // No ACTOR_TIMEOUT_AT/APIFY_TIMEOUT_AT stubbed at all - Actor.getEnv().timeoutAt is null.
-            const fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => successResponse([row()]) }));
-            vi.stubGlobal('fetch', fetchMock);
+            fetchMock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => successResponse([row()]) }));
 
             const result = await fetchAllDifcCompanies();
             expect(result.complete).toBe(true);
