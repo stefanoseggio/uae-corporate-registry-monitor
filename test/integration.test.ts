@@ -105,16 +105,16 @@ describe('Full entity lifecycle across data sources: baseline -> unchanged -> st
         const input = { dataSources: ['ADGM_FREEZONE', 'DIFC_FREEZONE'] as const, onlyNew: false, webhookUrl: 'https://example.com/hook' };
 
         // --- Run 1: first-ever observation. Must be BASELINE_SNAPSHOT for both, uncharged, no notification. ---
-        fetchAllAdgmEntities.mockResolvedValueOnce([adgmRow()]);
-        fetchAllDifcCompanies.mockResolvedValueOnce([difcRow()]);
+        fetchAllAdgmEntities.mockResolvedValueOnce({ rows: [adgmRow()], complete: true });
+        fetchAllDifcCompanies.mockResolvedValueOnce({ rows: [difcRow()], complete: true });
         const stats1 = await run(input as never, state);
         expect(stats1.byEventType.BASELINE_SNAPSHOT).toBe(2);
         expect(notifiedRecords).toHaveLength(0);
         pushedRecords.length = 0;
 
         // --- Run 2: identical data. Must be ENTITY_UNCHANGED for both, uncharged, no notification. ---
-        fetchAllAdgmEntities.mockResolvedValueOnce([adgmRow()]);
-        fetchAllDifcCompanies.mockResolvedValueOnce([difcRow()]);
+        fetchAllAdgmEntities.mockResolvedValueOnce({ rows: [adgmRow()], complete: true });
+        fetchAllDifcCompanies.mockResolvedValueOnce({ rows: [difcRow()], complete: true });
         const stats2 = await run(input as never, state);
         expect(stats2.byEventType.ENTITY_UNCHANGED).toBe(2);
         expect(notifiedRecords).toHaveLength(0);
@@ -122,8 +122,8 @@ describe('Full entity lifecycle across data sources: baseline -> unchanged -> st
 
         // --- Run 3: the ADGM entity's status changes (a real deregistration), the DIFC entity gets a
         // cosmetic address update only. STATUS_CHANGED must notify; the cosmetic ENTITY_UPDATED must not. ---
-        fetchAllAdgmEntities.mockResolvedValueOnce([adgmRow({ Entity_Status__c: 'Deregistered' })]);
-        fetchAllDifcCompanies.mockResolvedValueOnce([difcRow({ Registered_Address__c: 'A new DIFC address' })]);
+        fetchAllAdgmEntities.mockResolvedValueOnce({ rows: [adgmRow({ Entity_Status__c: 'Deregistered' })], complete: true });
+        fetchAllDifcCompanies.mockResolvedValueOnce({ rows: [difcRow({ Registered_Address__c: 'A new DIFC address' })], complete: true });
         const stats3 = await run(input as never, state);
         expect(stats3.byEventType.STATUS_CHANGED).toBe(1);
         expect(stats3.byEventType.ENTITY_UPDATED).toBe(1);
@@ -135,8 +135,8 @@ describe('Full entity lifecycle across data sources: baseline -> unchanged -> st
         notifiedRecords.length = 0;
 
         // --- Run 4: a genuinely new DIFC entity appears alongside the unchanged ADGM one. NEW_ENTITY always notifies. ---
-        fetchAllAdgmEntities.mockResolvedValueOnce([adgmRow({ Entity_Status__c: 'Deregistered' })]);
-        fetchAllDifcCompanies.mockResolvedValueOnce([difcRow({ Registered_Address__c: 'A new DIFC address' }), difcRow({ Id: '0099', Registration_License_No__c: '9999', Name: 'Brand New Co Ltd' })]);
+        fetchAllAdgmEntities.mockResolvedValueOnce({ rows: [adgmRow({ Entity_Status__c: 'Deregistered' })], complete: true });
+        fetchAllDifcCompanies.mockResolvedValueOnce({ rows: [difcRow({ Registered_Address__c: 'A new DIFC address' }), difcRow({ Id: '0099', Registration_License_No__c: '9999', Name: 'Brand New Co Ltd' })], complete: true });
         const stats4 = await run(input as never, state);
         expect(stats4.byEventType.NEW_ENTITY).toBe(1);
         expect(stats4.byEventType.ENTITY_UNCHANGED).toBe(2);
@@ -145,8 +145,8 @@ describe('Full entity lifecycle across data sources: baseline -> unchanged -> st
 
     it('processes ADGM and DIFC independently in one run, each with its own baseline state', async () => {
         const state = emptyState();
-        fetchAllAdgmEntities.mockResolvedValueOnce([adgmRow()]);
-        fetchAllDifcCompanies.mockResolvedValueOnce([difcRow()]);
+        fetchAllAdgmEntities.mockResolvedValueOnce({ rows: [adgmRow()], complete: true });
+        fetchAllDifcCompanies.mockResolvedValueOnce({ rows: [difcRow()], complete: true });
 
         const stats = await run({ dataSources: ['ADGM_FREEZONE', 'DIFC_FREEZONE'], onlyNew: false } as never, state);
         expect(stats.sourcesChecked).toBe(2);
@@ -158,7 +158,7 @@ describe('Full entity lifecycle across data sources: baseline -> unchanged -> st
     it('a transient failure fetching one data source does not abort processing of the other, independent source', async () => {
         const state = emptyState();
         fetchAllAdgmEntities.mockRejectedValueOnce(new Error('simulated transient network failure'));
-        fetchAllDifcCompanies.mockResolvedValueOnce([difcRow()]);
+        fetchAllDifcCompanies.mockResolvedValueOnce({ rows: [difcRow()], complete: true });
 
         const stats = await run({ dataSources: ['ADGM_FREEZONE', 'DIFC_FREEZONE'], onlyNew: false } as never, state);
         expect(stats.sourcesChecked).toBe(1);
@@ -169,7 +169,7 @@ describe('Full entity lifecycle across data sources: baseline -> unchanged -> st
 
     it('skips DUBAI_MAINLAND with a warning (not an error) when requested without an API key, and still processes the other requested sources', async () => {
         const state = emptyState();
-        fetchAllDifcCompanies.mockResolvedValueOnce([difcRow()]);
+        fetchAllDifcCompanies.mockResolvedValueOnce({ rows: [difcRow()], complete: true });
 
         const stats = await run({ dataSources: ['DUBAI_MAINLAND', 'DIFC_FREEZONE'], onlyNew: false } as never, state);
         expect(stats.sourcesChecked).toBe(1);
@@ -213,7 +213,7 @@ describe('Full entity lifecycle across data sources: baseline -> unchanged -> st
         const state = emptyState();
         state.sourceCache.ADGM_FREEZONE = { lastChecked: '2020-01-01T00:00:00.000Z', baselineComplete: true };
         vi.mocked(Actor.pushData).mockResolvedValueOnce({ eventChargeLimitReached: true, chargedCount: 1, chargeableWithinLimit: {} });
-        fetchAllAdgmEntities.mockResolvedValueOnce([adgmRow({ Registration_Number__c: '1001' }), adgmRow({ Registration_Number__c: '1002' })]);
+        fetchAllAdgmEntities.mockResolvedValueOnce({ rows: [adgmRow({ Registration_Number__c: '1001' }), adgmRow({ Registration_Number__c: '1002' })], complete: true });
 
         const stats = await run({ dataSources: ['ADGM_FREEZONE'], onlyNew: false } as never, state);
         expect(stats.stopped).toBe(true);
@@ -223,15 +223,47 @@ describe('Full entity lifecycle across data sources: baseline -> unchanged -> st
 
     it('does NOT cache the source baseline when maxItems truncates the pass, and correctly resumes on the next run without double-charging', async () => {
         const state = emptyState();
-        fetchAllAdgmEntities.mockResolvedValueOnce([adgmRow({ Registration_Number__c: '1001' }), adgmRow({ Registration_Number__c: '1002' })]);
+        fetchAllAdgmEntities.mockResolvedValueOnce({ rows: [adgmRow({ Registration_Number__c: '1001' }), adgmRow({ Registration_Number__c: '1002' })], complete: true });
         const stats1 = await run({ dataSources: ['ADGM_FREEZONE'], onlyNew: false, maxItems: 1 } as never, state);
         expect(stats1.totalPushed).toBe(1);
         expect(state.sourceCache.ADGM_FREEZONE).toBeUndefined();
 
-        fetchAllAdgmEntities.mockResolvedValueOnce([adgmRow({ Registration_Number__c: '1001' }), adgmRow({ Registration_Number__c: '1002' })]);
+        fetchAllAdgmEntities.mockResolvedValueOnce({ rows: [adgmRow({ Registration_Number__c: '1001' }), adgmRow({ Registration_Number__c: '1002' })], complete: true });
         const stats2 = await run({ dataSources: ['ADGM_FREEZONE'], onlyNew: false, maxItems: 10 } as never, state);
         expect(stats2.byEventType.ENTITY_UNCHANGED).toBe(1);
         expect(stats2.byEventType.BASELINE_SNAPSHOT).toBe(1);
+        expect(state.sourceCache.ADGM_FREEZONE?.baselineComplete).toBe(true);
+    });
+
+    it('CONFIRMED BUG FIX: does NOT cache the source baseline when the fetch itself was cut short (complete: false) - e.g. adgmSource.ts/difcSource.ts\'s run-level time budget guard stopping pagination early - even though every row that WAS fetched is still pushed and none of the run\'s own limits (stats.stopped) were hit', async () => {
+        const state = emptyState();
+        fetchAllAdgmEntities.mockResolvedValueOnce({ rows: [adgmRow({ Registration_Number__c: '1001' })], complete: false });
+
+        const stats = await run({ dataSources: ['ADGM_FREEZONE'], onlyNew: false } as never, state);
+
+        expect(stats.stopped).toBe(false); // nothing hit maxItems/eventChargeLimitReached this run
+        expect(stats.totalPushed).toBe(1); // the row that WAS fetched is still pushed, not discarded
+        expect(stats.sourcesChecked).toBe(1);
+        // The critical assertion: baselineComplete must stay unset, because the fetch never actually
+        // reached the end of ADGM's real register this run. If it were wrongly set to true here, the
+        // next run's still-unseen real entities would be misclassified as NEW_ENTITY (and
+        // re-notified/re-charged) instead of correctly finishing the baseline first.
+        expect(state.sourceCache.ADGM_FREEZONE?.baselineComplete).toBeUndefined();
+
+        // The next run genuinely completes the enumeration (now including a second, previously
+        // unreached entity) - THAT run is the one allowed to mark baselineComplete: true.
+        fetchAllAdgmEntities.mockResolvedValueOnce({
+            rows: [adgmRow({ Registration_Number__c: '1001' }), adgmRow({ Registration_Number__c: '1002' })],
+            complete: true,
+        });
+        const stats2 = await run({ dataSources: ['ADGM_FREEZONE'], onlyNew: false } as never, state);
+        // Entity 1001 was already `recordSeen` during the first (incomplete) run above, so it is
+        // correctly ENTITY_UNCHANGED here; 1002 is genuinely new to state and baselineComplete was
+        // still false going into this run, so it is correctly BASELINE_SNAPSHOT - NOT NEW_ENTITY,
+        // which is exactly the misclassification this fix prevents.
+        expect(stats2.byEventType.ENTITY_UNCHANGED).toBe(1);
+        expect(stats2.byEventType.BASELINE_SNAPSHOT).toBe(1);
+        expect(stats2.byEventType.NEW_ENTITY ?? 0).toBe(0);
         expect(state.sourceCache.ADGM_FREEZONE?.baselineComplete).toBe(true);
     });
 
@@ -243,7 +275,7 @@ describe('Full entity lifecycle across data sources: baseline -> unchanged -> st
         // suspected-fetch-failure guard's minimum-previous-count floor), exactly as a real fleet of
         // past good runs would have left behind in persisted delta state - using real computed
         // fingerprints, not stubbed ones.
-        fetchAllAdgmEntities.mockResolvedValueOnce(realRows);
+        fetchAllAdgmEntities.mockResolvedValueOnce({ rows: realRows, complete: true });
         const statsBaseline = await run({ dataSources: ['ADGM_FREEZONE'], onlyNew: false } as never, state);
         expect(statsBaseline.byEventType.BASELINE_SNAPSHOT).toBe(25);
         expect(state.sourceCache.ADGM_FREEZONE?.baselineComplete).toBe(true);
@@ -254,7 +286,7 @@ describe('Full entity lifecycle across data sources: baseline -> unchanged -> st
         // Run 2: this run's fetch resolves successfully (not a thrown error) with zero rows -
         // simulating a shifted/broken response that technically parsed, or a redirected/bot-check
         // page - while 25 real entities are already known-tracked for this source.
-        fetchAllAdgmEntities.mockResolvedValueOnce([]);
+        fetchAllAdgmEntities.mockResolvedValueOnce({ rows: [], complete: true });
         const statsBadRun = await run({ dataSources: ['ADGM_FREEZONE'], onlyNew: false } as never, state);
 
         // The suspected-failure guard must fire: no source-check credit, no entities touched, and
@@ -269,7 +301,7 @@ describe('Full entity lifecycle across data sources: baseline -> unchanged -> st
         // was never poisoned by the bad run, every one of them must be correctly reclassified as
         // ENTITY_UNCHANGED - NOT as a false NEW_ENTITY storm (which is exactly what would happen if
         // the bad run above had wrongly wiped state.entities or reset baselineComplete to false).
-        fetchAllAdgmEntities.mockResolvedValueOnce(realRows);
+        fetchAllAdgmEntities.mockResolvedValueOnce({ rows: realRows, complete: true });
         const statsRecovered = await run({ dataSources: ['ADGM_FREEZONE'], onlyNew: false } as never, state);
 
         expect(statsRecovered.sourcesChecked).toBe(1);
@@ -293,7 +325,7 @@ describe('Full entity lifecycle across data sources: baseline -> unchanged -> st
         state.sourceCache.DIFC_FREEZONE = { lastChecked: '2026-01-01T00:00:00.000Z', baselineComplete: true };
         const entitiesBefore = { ...state.entities };
 
-        fetchAllDifcCompanies.mockResolvedValueOnce([]);
+        fetchAllDifcCompanies.mockResolvedValueOnce({ rows: [], complete: true });
         const stats = await run({ dataSources: ['DIFC_FREEZONE'], onlyNew: false } as never, state);
 
         expect(stats.sourcesChecked).toBe(0);
@@ -313,7 +345,7 @@ describe('Full entity lifecycle across data sources: baseline -> unchanged -> st
         };
         state.sourceCache.ADGM_FREEZONE = { lastChecked: '2026-01-01T00:00:00.000Z', baselineComplete: true };
 
-        fetchAllAdgmEntities.mockResolvedValueOnce([]);
+        fetchAllAdgmEntities.mockResolvedValueOnce({ rows: [], complete: true });
         const stats = await run({ dataSources: ['ADGM_FREEZONE'], onlyNew: false } as never, state);
 
         expect(stats.sourcesChecked).toBe(1); // trusted as a real (tiny) result, not suspected
@@ -322,8 +354,8 @@ describe('Full entity lifecycle across data sources: baseline -> unchanged -> st
 
     it('a single malformed row (missing its required identifier field) is logged and skipped without aborting the rest of the run - found untested by adversarial review, exercising the per-row try/catch/continue in processAdgm/processDifc/processDubaiMainland through run() rather than only unit-testing normalize*Entity in isolation', async () => {
         const state = emptyState();
-        fetchAllAdgmEntities.mockResolvedValueOnce([adgmRow({ Registration_Number__c: '' }), adgmRow({ Registration_Number__c: '1002' })]);
-        fetchAllDifcCompanies.mockResolvedValueOnce([difcRow({ Registration_License_No__c: '' }), difcRow({ Registration_License_No__c: '2002' })]);
+        fetchAllAdgmEntities.mockResolvedValueOnce({ rows: [adgmRow({ Registration_Number__c: '' }), adgmRow({ Registration_Number__c: '1002' })], complete: true });
+        fetchAllDifcCompanies.mockResolvedValueOnce({ rows: [difcRow({ Registration_License_No__c: '' }), difcRow({ Registration_License_No__c: '2002' })], complete: true });
 
         const stats = await run({ dataSources: ['ADGM_FREEZONE', 'DIFC_FREEZONE'], onlyNew: false } as never, state);
 
