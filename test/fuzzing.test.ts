@@ -15,8 +15,11 @@ import type { AdgmEntityRow, DifcCompanyRow, DubaiLicenseRow } from '../src/type
  */
 
 /** Generates strings that mix Arabic letters, Arabic-Indic digits, combining diacritics, bidi control characters, and ordinary ASCII/Latin text - the real character classes this actor's data sources can plausibly emit, deliberately shuffled adversarially. */
-const mixedBilingualFuzzArbitrary = fc.stringOf(
-    fc.oneof(
+const mixedBilingualFuzzArbitrary = fc.string({
+    // fast-check v4 removed the standalone `fc.stringOf(charArb, constraints)` helper; the
+    // replacement is `fc.string({ unit: charArb, ... })`, where `unit` accepts a custom
+    // Arbitrary<string> of single units to join, same semantics as the old `stringOf`.
+    unit: fc.oneof(
         fc.constantFrom(...'ابتثجحخدذرزسشصضطظعغ'.split('')), // Arabic letters
         fc.constantFrom(...'ًٌٍَُِّْـ'.split('')), // diacritics + tatweel
         fc.constantFrom(...'٠١٢٣٤٥٦٧٨٩'.split('')), // Arabic-Indic digits
@@ -24,8 +27,9 @@ const mixedBilingualFuzzArbitrary = fc.stringOf(
         fc.constantFrom(...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,-()&\'"'.split('')), // ASCII
         fc.constantFrom('\u{1F600}', '\u{1F1E6}\u{1F1EA}'), // astral-plane surrogate-pair characters (emoji, regional indicator)
     ),
-    { minLength: 0, maxLength: 300 },
-);
+    minLength: 0,
+    maxLength: 300,
+});
 
 describe('bilingual normalizer fuzzing - zero-crash guarantee', () => {
     it('normalizeArabicText never throws on any adversarial mixed-bilingual fuzz string', () => {
